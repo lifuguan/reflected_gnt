@@ -20,7 +20,7 @@
             "program": "${workspaceFolder}/train.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_blender.txt", "--train_scenes", "drums" , "--eval_scenes", "drums"]
+            "args": ["--config", "configs/gnt_blender.txt", "--train_dataset", "llff", "--eval_scenes", "drums"]
         },
         {
             "name": "test: single view",
@@ -39,6 +39,15 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": ["--config", "configs/gnt_full.txt", "--eval_dataset", "rffr", "--eval_scenes", "art1", "--expname", "gnt_full", "--chunk_size", "500", "--run_val", "--N_samples", "192"]
-        }
+        },
+        {
+            "name": "finetune: rffr",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_ft_rffr.txt"]
+        },
     ]
 }

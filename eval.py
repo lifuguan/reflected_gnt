@@ -66,7 +66,7 @@ def eval(args):
             dataset,
             batch_size=1,
             worker_init_fn=lambda _: np.random.seed(),
-            num_workers=args.workers,
+            num_workers=args.num_workers,
             pin_memory=True,
             sampler=sampler,
             shuffle=True if sampler is None else False,

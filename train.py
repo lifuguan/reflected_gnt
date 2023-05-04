@@ -20,6 +20,43 @@ from gnt.projection import Projector
 from gnt.data_loaders.create_training_dataset import create_training_dataset
 import imageio
 
+def setup_for_distributed(is_master):
+    """
+    This function disables printing when not in master process
+    """
+    import builtins as __builtin__
+    builtin_print = __builtin__.print
+
+    def print(*args, **kwargs):
+        force = kwargs.pop('force', False)
+        if is_master or force:
+            builtin_print(*args, **kwargs)
+
+    __builtin__.print = print
+    
+def init_distributed_mode(args):
+    if 'RANK' in os.environ and 'WORLD_SIZE' in os.environ:
+        args.rank = int(os.environ["RANK"])
+        args.world_size = int(os.environ['WORLD_SIZE'])
+        args.gpu = int(os.environ['LOCAL_RANK'])
+    elif 'SLURM_PROCID' in os.environ:
+        args.rank = int(os.environ['SLURM_PROCID'])
+        args.gpu = args.rank % torch.cuda.device_count()
+    else:
+        print('Not using distributed mode')
+        args.distributed = False
+        return
+
+    args.distributed = True
+
+    torch.cuda.set_device(args.gpu)
+    args.dist_backend = 'nccl'
+    print('| distributed init (rank {}): {}'.format(
+        args.rank, args.dist_url), flush=True)
+    torch.distributed.init_process_group(backend=args.dist_backend, init_method=args.dist_url,
+                                         world_size=args.world_size, rank=args.rank)
+    torch.distributed.barrier()
+    setup_for_distributed(args.rank == 0)
 
 def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
@@ -67,7 +104,7 @@ def train(args):
         train_dataset,
         batch_size=1,
         worker_init_fn=lambda _: np.random.seed(),
-        num_workers=args.workers,
+        num_workers=args.num_workers,
         pin_memory=True,
         sampler=train_sampler,
         shuffle=True if train_sampler is None else False,
@@ -311,9 +348,7 @@ if __name__ == "__main__":
     parser = config.config_parser()
     args = parser.parse_args()
 
-    if args.distributed:
-        torch.distributed.init_process_group(backend="nccl", init_method="env://localhost:50000")
-        args.local_rank = int(os.environ.get("LOCAL_RANK"))
-        torch.cuda.set_device(args.local_rank)
+    init_distributed_mode(args)
 
     train(args)
+

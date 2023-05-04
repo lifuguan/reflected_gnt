@@ -12,7 +12,6 @@ from .llff_data_utils import load_llff_data, batch_parse_llff_poses
 
 class RFFRTestDataset(Dataset):
     def __init__(self, args, mode, scenes=(), random_crop=True, **kwargs):
-        mode = 'val'
         self.folder_path = args.dataset_root
         self.args = args
         self.mode = mode
