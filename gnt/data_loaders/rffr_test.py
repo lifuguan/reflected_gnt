@@ -3,18 +3,19 @@ import numpy as np
 import imageio
 import torch
 import sys
+from PIL import Image
 
 sys.path.append("../")
 from torch.utils.data import Dataset
 from .data_utils import random_crop, get_nearest_pose_ids
 from .llff_data_utils import load_llff_data, batch_parse_llff_poses
 
-
-class LLFFTestDataset(Dataset):
+class RFFRTestDataset(Dataset):
     def __init__(self, args, mode, scenes=(), random_crop=True, **kwargs):
-        self.folder_path = os.path.join(args.rootdir, "data/nerf_llff_data/")
+        mode = 'val'
+        self.folder_path = args.dataset_root
         self.args = args
-        self.mode = mode  # train / test / validation
+        self.mode = mode
         self.num_source_views = args.num_source_views
         self.random_crop = random_crop
         self.render_rgb_files = []
@@ -34,6 +35,9 @@ class LLFFTestDataset(Dataset):
         else:
             scenes = all_scenes
 
+        # self.image_paths = [os.path.join(self.root_dir, 'images', name)
+        #                     for name in self.image_names]
+        
         print("loading {} for {}".format(scenes, mode))
         for i, scene in enumerate(scenes):
             scene_path = os.path.join(self.folder_path, scene)
@@ -78,7 +82,10 @@ class LLFFTestDataset(Dataset):
     def __getitem__(self, idx):
         idx = idx % len(self.render_rgb_files)
         rgb_file = self.render_rgb_files[idx]
-        rgb = imageio.imread(rgb_file).astype(np.float32) / 255.0
+
+        # rgb = imageio.imread(rgb_file).astype(np.float32) / 255.0
+
+        rgb = np.array(Image.fromarray(imageio.imread(rgb_file)).resize((2016,1512))).astype(np.float32) / 255.0
         render_pose = self.render_poses[idx]
         intrinsics = self.render_intrinsics[idx]
         depth_range = self.render_depth_range[idx]
@@ -124,7 +131,8 @@ class LLFFTestDataset(Dataset):
         src_rgbs = []
         src_cameras = []
         for id in nearest_pose_ids:
-            src_rgb = imageio.imread(train_rgb_files[id]).astype(np.float32) / 255.0
+            
+            src_rgb = np.array(Image.fromarray(imageio.imread(train_rgb_files[id])).resize((2016,1512))).astype(np.float32) / 255.0
             train_pose = train_poses[id]
             train_intrinsics_ = train_intrinsics[id]
 

@@ -13,6 +13,8 @@ from .llff_render import *
 from .shiny_render import *
 from .nerf_synthetic_render import *
 from .nmr_dataset import *
+from .rffr import RFFRDataset
+from .rffr_test import RFFRTestDataset
 
 dataset_dict = {
     "spaces": SpacesFreeDataset,
@@ -28,4 +30,6 @@ dataset_dict = {
     "shiny_render": ShinyRenderDataset,
     "nerf_synthetic_render": NerfSyntheticRenderDataset,
     "nmr": NMRDataset,
+    # "rffr": RFFRDataset, 
+    "rffr": RFFRTestDataset,
 }

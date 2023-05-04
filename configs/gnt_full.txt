@@ -5,8 +5,8 @@ render_stride = 2
 distributed = False
 
 ## dataset
-train_dataset = llff+spaces+ibrnet_collected+realestate+google_scanned
-dataset_weights = [0.3, 0.15, 0.35, 0.15, 0.05]
+train_dataset = llff+spaces+ibrnet_collected+google_scanned
+dataset_weights = [0.3, 0.2, 0.4, 0.1]
 eval_dataset = llff_test
 eval_scenes = [trex, fern, flower, leaves, room, fortress, horns, orchids]
 # uncomment to eval on nerf synthetic

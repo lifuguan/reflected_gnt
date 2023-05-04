@@ -1,0 +1,44 @@
+{
+    // 使用 IntelliSense 了解相关属性。 
+    // 悬停以查看现有属性的描述。
+    // 欲了解更多信息，请访问: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "train: full",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_full.txt"]
+        },
+        {
+            "name": "train: single view",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_blender.txt", "--train_scenes", "drums" , "--eval_scenes", "drums"]
+        },
+        {
+            "name": "test: single view",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_full.txt", "--eval_scenes", "orchids", "--expname", "gnt_full", "--chunk_size", "500", "--run_val", "--N_samples", "192"]
+        },
+        {
+            "name": "test: reflection",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_full.txt", "--eval_dataset", "rffr", "--eval_scenes", "art1", "--expname", "gnt_full", "--chunk_size", "500", "--run_val", "--N_samples", "192"]
+        }
+    ]
+}

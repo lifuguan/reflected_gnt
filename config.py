@@ -194,4 +194,10 @@ def config_parser():
         help="will take every 1/N images as LLFF test set, paper uses 8",
     )
 
+    ########## evaluation options: RFFRDatasets ##########
+    parser.add_argument('--img_wh', type=int, nargs=2, default=[648, 432])
+    parser.add_argument('--patch_size', type=int, default=4)
+    parser.add_argument('--use_pixel_centers', type=bool, default=True)
+    parser.add_argument('--dataset_root', type=str, default='data/rffr')
+
     return parser
