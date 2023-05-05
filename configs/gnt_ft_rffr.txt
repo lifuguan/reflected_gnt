@@ -20,7 +20,7 @@ lrate_feature = 0.0005
 lrate_gnt = 0.0002
 lrate_decay_factor = 0.5
 lrate_decay_steps = 20000
-single_net = True
+single_net = False
 trans_depth = 8
 
 ### TESTING
@@ -28,7 +28,7 @@ chunk_size = 2000
 
 ### RENDERING
 N_importance = 0
-N_samples = 64
+N_samples = 192
 inv_uniform = True
 white_bkgd = False
 

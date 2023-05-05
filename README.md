@@ -14,5 +14,11 @@ python -m torch.distributed.launch --nproc_per_node=2 \
 
 
 export CUDA_VISIBLE_DEVICES=2,3
-python -m torch.distributed.launch --nproc_per_node=2 --master_port=$(( RANDOM % 1000 + 50000 ) train.py --config configs/gnt_ft_rffr.txt --expname low_Nray --N_rand 1024
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 ) \
+       train.py --config configs/gnt_ft_rffr.txt --expname low_Nray --N_rand 1024
 
+export CUDA_VISIBLE_DEVICES=0,1,2,3
+python -m torch.distributed.launch --nproc_per_node=4 \
+       --master_port=$(( RANDOM % 1000 + 50000 ) \
+       train.py --config configs/gnt_ft_rffr.txt --expname vanilla_Nray --N_rand 512 --N_samples 192
