@@ -222,7 +222,7 @@ def render_rays(
     # pts: [N_rays, N_samples, 3]
     # z_vals: [N_rays, N_samples]
     pts, z_vals = sample_along_camera_ray(
-        ray_o=ray_o,
+        ray_o=ray_o,  # 值都是一样的
         ray_d=ray_d,
         depth_range=ray_batch["depth_range"],
         N_samples=N_samples,
@@ -243,14 +243,14 @@ def render_rays(
     #     mask[..., 0].sum(dim=2) > 1
     # )  # [N_rays, N_samples], should at least have 2 observations
 
-    rgb = model.net_coarse(rgb_feat, ray_diff, mask, pts, ray_d)
+    rgb, feats = model.net_coarse(rgb_feat, ray_diff, mask, pts, ray_d)
     if ret_alpha:
         rgb, weights = rgb[:, 0:3], rgb[:, 3:]
         depth_map = torch.sum(weights * z_vals, dim=-1)
     else:
         weights = None
         depth_map = None
-    ret["outputs_coarse"] = {"rgb": rgb, "weights": weights, "depth": depth_map}
+    ret["outputs_coarse"] = {"rgb": rgb, "weights": weights, "depth": depth_map, "feats": feats}
 
     if N_importance > 0:
         # detach since we would like to decouple the coarse and fine networks

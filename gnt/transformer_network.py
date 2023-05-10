@@ -306,4 +306,4 @@ class GNT(nn.Module):
         if self.ret_alpha:
             return torch.cat([outputs, attn], dim=1)
         else:
-            return outputs
+            return outputs, h.mean(dim=1)

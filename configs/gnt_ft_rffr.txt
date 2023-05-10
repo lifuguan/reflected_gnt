@@ -1,7 +1,7 @@
 ### INPUT
 expname = gnt_ft_rffr
 rootdir = ./
-ckpt_path = ./out/gnt_full/model_810000.pth
+ckpt_path = ./out/gnt_full/model_720000.pth
 no_reload = False
 render_stride = 2
 distributed = False

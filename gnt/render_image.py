@@ -83,10 +83,16 @@ def render_single_image(
                     all_ret["outputs_fine"][k].append(ret["outputs_fine"][k].cpu())
 
     rgb_strided = torch.ones(ray_sampler.H, ray_sampler.W, 3)[::render_stride, ::render_stride, :]
+    feat_strided = torch.ones(ray_sampler.H, ray_sampler.W, 3)[::render_stride, ::render_stride, :]
     # merge chunk results and reshape
     for k in all_ret["outputs_coarse"]:
         if k == "random_sigma":
             continue
+        elif k == "feats":
+            feat_tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
+                (feat_strided.shape[0], feat_strided.shape[1], 96, -1)
+            )
+            all_ret["outputs_coarse"][k] = feat_tmp.squeeze()            
         tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
             (rgb_strided.shape[0], rgb_strided.shape[1], -1)
         )
