@@ -29,7 +29,7 @@
             "program": "${workspaceFolder}/eval.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_full.txt", "--eval_scenes", "room", "--expname", "gnt_full", "--chunk_size", "500", "--run_val", "--N_samples", "96"]
+            "args": ["--config", "configs/gnt_full.txt", "--eval_scenes", "room", "--expname", "gnt_full", "--chunk_size", "500", "--run_val", "--N_samples", "96", "--N_importance", "1"]
         },
         {
             "name": "test: reflection",

@@ -16,6 +16,7 @@ def render_single_image(
     white_bkgd=False,
     render_stride=1,
     featmaps=None,
+    deep_semantics=None,
     ret_alpha=False,
     single_net=False,
 ):
@@ -49,6 +50,7 @@ def render_single_image(
             chunk,
             model,
             featmaps,
+            deep_semantics,
             projector=projector,
             N_samples=N_samples,
             inv_uniform=inv_uniform,
@@ -90,7 +92,7 @@ def render_single_image(
             continue
         elif k == "feats":
             feat_tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
-                (feat_strided.shape[0], feat_strided.shape[1], 96, -1)
+                (feat_strided.shape[0], feat_strided.shape[1], 256, -1)   # 256是深层语义的维度
             )
             all_ret["outputs_coarse"][k] = feat_tmp.squeeze()            
         tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(

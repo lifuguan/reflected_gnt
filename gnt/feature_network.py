@@ -318,4 +318,7 @@ class ResUNet(nn.Module):
         else:
             x_coarse = x_out[:, : self.coarse_out_ch, :]
             x_fine = x_out[:, -self.fine_out_ch :, :]
-        return x_coarse, x_fine
+        
+        deep_sem = F.interpolate(x3, x_coarse.shape[-2:])  # 上采样到和rgb feat一样的维度
+
+        return x_coarse, x_fine, deep_sem

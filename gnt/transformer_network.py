@@ -71,7 +71,7 @@ class Attention2D(nn.Module):
         self.out_fc = nn.Linear(dim, dim)
         self.dp = nn.Dropout(dp_rate)
 
-    def forward(self, q, k, pos, mask=None):
+    def forward(self, q, k, deep_semantics, pos, mask=None, ret_attn=False):
         q = self.q_fc(q)
         k = self.k_fc(k)
         v = self.v_fc(k)
@@ -86,7 +86,11 @@ class Attention2D(nn.Module):
 
         x = ((v + pos) * attn).sum(dim=2)
         x = self.dp(self.out_fc(x))
-        return x
+        if ret_attn is True:   # 保留积分权重不变，直接乘上深层语义特征
+            view_deep_semantic = (deep_semantics * attn.repeat_interleave(4, dim=-1)).sum(dim=2)
+            return x, view_deep_semantic
+        else:
+            return x
 
 
 # View Transformer
@@ -99,10 +103,12 @@ class Transformer2D(nn.Module):
         self.ff = FeedForward(dim, ff_hid_dim, ff_dp_rate)
         self.attn = Attention2D(dim, attn_dp_rate)
 
-    def forward(self, q, k, pos, mask=None):
+    def forward(self, q, k, deep_semantics, pos, mask=None, ret_attn=False):
         residue = q
         x = self.attn_norm(q)
-        x = self.attn(x, k, pos, mask)
+        x = self.attn(x, k, deep_semantics, pos, mask, ret_attn=ret_attn)
+        if ret_attn is True:
+            x, view_sem_out = x
         x = x + residue
 
         residue = x
@@ -110,7 +116,10 @@ class Transformer2D(nn.Module):
         x = self.ff(x)
         x = x + residue
 
-        return x
+        if ret_attn is True:
+            return x, view_sem_out
+        else:
+            return x
 
 
 # attention module for self attention.
@@ -137,7 +146,7 @@ class Attention(nn.Module):
         self.n_heads = n_heads
         self.attn_mode = attn_mode
 
-    def forward(self, x, pos=None, ret_attn=False):
+    def forward(self, x, deep_semantics, pos=None, ret_attn=False):
         if self.attn_mode in ["qk", "gate"]:
             q = self.q_fc(x)
             q = q.view(x.shape[0], x.shape[1], self.n_heads, -1).permute(0, 2, 1, 3)
@@ -164,9 +173,16 @@ class Attention(nn.Module):
 
         out = torch.matmul(attn, v).permute(0, 2, 1, 3).contiguous()
         out = out.view(x.shape[0], x.shape[1], -1)
+
+        
         out = self.dp(self.out_fc(out))
-        if ret_attn:
-            return out, attn
+        if ret_attn:   # 保留积分权重不变，直接乘上深层语义特征
+            ray_sem_out = deep_semantics.view(deep_semantics.shape[0], 
+                                              deep_semantics.shape[1], 
+                                              self.n_heads, -1).permute(0, 2, 1, 3)
+            ray_sem_out = torch.matmul(attn, ray_sem_out).permute(0, 2, 1, 3).contiguous()
+            ray_sem_out = ray_sem_out.view(x.shape[0], x.shape[1], -1)
+            return out, attn, ray_sem_out
         else:
             return out
 
@@ -183,12 +199,12 @@ class Transformer(nn.Module):
         self.ff = FeedForward(dim, ff_hid_dim, ff_dp_rate)
         self.attn = Attention(dim, n_heads, attn_dp_rate, attn_mode, pos_dim)
 
-    def forward(self, x, pos=None, ret_attn=False):
+    def forward(self, x, deep_semantics, pos=None, ret_attn=False):
         residue = x
         x = self.attn_norm(x)
-        x = self.attn(x, pos, ret_attn)
+        x = self.attn(x, deep_semantics, pos, ret_attn)
         if ret_attn:
-            x, attn = x
+            x, attn, deep_sem_out = x
         x = x + residue
 
         residue = x
@@ -197,7 +213,7 @@ class Transformer(nn.Module):
         x = x + residue
 
         if ret_attn:
-            return x, attn.mean(dim=1)[:, 0]
+            return x, attn.mean(dim=1)[:, 0], deep_sem_out
         else:
             return x
 
@@ -267,7 +283,7 @@ class GNT(nn.Module):
             periodic_fns=[torch.sin, torch.cos],
         )
 
-    def forward(self, rgb_feat, ray_diff, mask, pts, ray_d):
+    def forward(self, rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d):
         # compute positional embeddings
         viewdirs = ray_d
         viewdirs = viewdirs / torch.norm(viewdirs, dim=-1, keepdim=True)
@@ -285,25 +301,32 @@ class GNT(nn.Module):
         # q_init -> maxpool
         q = rgb_feat.max(dim=2)[0]
 
+        deep_sem_out = []
         # transformer modules
         for i, (crosstrans, q_fc, selftrans) in enumerate(
             zip(self.view_crosstrans, self.q_fcs, self.view_selftrans)
         ):
             # view transformer to update q
-            q = crosstrans(q, rgb_feat, ray_diff, mask)
+            q = crosstrans(q, rgb_feat, deep_sem_feat, ray_diff, mask, ret_attn=self.ret_alpha)
+            # 'learned' aggregation
+            if self.ret_alpha:
+                q, view_sem_out = q
             # embed positional information
             if i % 2 == 0:
                 q = torch.cat((q, input_pts, input_views), dim=-1)
                 q = q_fc(q)
             # ray transformer
-            q = selftrans(q, ret_attn=self.ret_alpha)
+            q = selftrans(q, view_sem_out, ret_attn=self.ret_alpha)
             # 'learned' density
             if self.ret_alpha:
-                q, attn = q
+                q, attn, ray_sem_out = q
+                deep_sem_out.append(ray_sem_out)
+
         # normalize & rgb
         h = self.norm(q)
         outputs = self.rgb_fc(h.mean(dim=1))
         if self.ret_alpha:
-            return torch.cat([outputs, attn], dim=1)
+            return torch.cat([outputs, attn], dim=1), \
+                   torch.stack(deep_sem_out, dim=0).sum(dim=0).mean(dim=1)
         else:
             return outputs, h.mean(dim=1)

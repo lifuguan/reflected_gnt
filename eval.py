@@ -139,7 +139,9 @@ def log_view(
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
         if model.feature_net is not None:
-            featmaps = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            outs = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            deep_semantics = outs[2]     # encoder的语义输出
+            featmaps = outs[:-1]
         else:
             featmaps = [None, None]
         ret = render_single_image(
@@ -155,6 +157,7 @@ def log_view(
             white_bkgd=args.white_bkgd,
             render_stride=render_stride,
             featmaps=featmaps,
+            deep_semantics=deep_semantics, # encoder的语义输出
             ret_alpha=ret_alpha,
             single_net=single_net,
         )
