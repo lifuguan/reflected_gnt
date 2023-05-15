@@ -49,5 +49,14 @@
             "justMyCode": false,
             "args": ["--config", "configs/gnt_ft_rffr.txt"]
         },
+        {
+            "name": "download",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/download_scannetv2.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--o", "data"]
+        },
     ]
 }
