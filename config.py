@@ -1,5 +1,5 @@
 import configargparse
-
+import json
 
 def config_parser():
     parser = configargparse.ArgumentParser()
@@ -197,5 +197,13 @@ def config_parser():
     parser.add_argument('--patch_size', type=int, default=4)
     parser.add_argument('--use_pixel_centers', type=bool, default=True)
     parser.add_argument('--dataset_root', type=str, default='data/rffr')
+
+    ########## train options: scannet ##########
+    parser.add_argument('--type2sample_weights', type=json.loads, default={"scannet": 1})
+    parser.add_argument('--train_database_types', nargs='+')
+    parser.add_argument('--aug_pixel_center_sample', type=bool, default=True)
+    parser.add_argument('--train_ray_num', type=int, default=2048)
+    parser.add_argument('--resolution_type', type=str, default="lr")
+    parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_val_split.txt")
 
     return parser
