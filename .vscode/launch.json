@@ -62,7 +62,7 @@
             "name": "train: semantic",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/train.py",
+            "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": ["--config", "configs/cra/train_cra_scannet.yaml"]
