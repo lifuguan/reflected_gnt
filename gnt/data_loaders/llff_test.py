@@ -149,10 +149,10 @@ class LLFFTestDataset(Dataset):
         depth_range = torch.tensor([depth_range[0] * 0.9, depth_range[1] * 1.6])
 
         return {
-            "rgb": torch.from_numpy(rgb[..., :3]),   # target rgbs
+            "rgb": torch.from_numpy(rgb[..., :3]),   # target rgbs  756, 1008, 3
             "camera": torch.from_numpy(camera),      # image shape + pose + intrinsics
             "rgb_path": rgb_file,
-            "src_rgbs": torch.from_numpy(src_rgbs[..., :3]),
+            "src_rgbs": torch.from_numpy(src_rgbs[..., :3]),  # 10, 756, 1008, 3
             "src_cameras": torch.from_numpy(src_cameras),
             "depth_range": depth_range,
         }

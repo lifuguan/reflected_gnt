@@ -65,7 +65,7 @@
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/cra/train_cra_scannet.yaml"]
+            "args": ["--config", "configs/cra/train_gnt_scannet.yaml", "--expname", "debug"]
         },
     ]
 }

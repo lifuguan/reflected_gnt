@@ -353,7 +353,34 @@ class RendererDataset(Dataset):
 
         outputs = {'ref_imgs_info': ref_imgs_info, 'que_imgs_info': que_imgs_info, 'scene_name': database.database_name}
         if self.cfg['use_src_imgs']: outputs['src_imgs_info'] = imgs_info_to_torch(src_imgs_info)
-        return outputs
 
+        gnt_outputs = self.switch_to_gnt(outputs)
+        return gnt_outputs
+
+    def switch_to_gnt(self, output: dict):
+        rgb = output['que_imgs_info']['imgs'].squeeze(0).permute(1,2,0)
+        img_size = torch.tensor(rgb.shape[:2], device=rgb.device)
+        camera = torch.cat([img_size, 
+                            output['que_imgs_info']['poses'].flatten(), 
+                            output['que_imgs_info']['Ks'].flatten()], dim=0)
+        depth_range = output['que_imgs_info']['depth_range'].squeeze(0)
+        labels = output['que_imgs_info']['labels'].squeeze(0).permute(1,2,0)
+   
+        src_rgbs = output['ref_imgs_info']['imgs'].permute(0,2,3,1)
+        src_labels = output['ref_imgs_info']['labels'].permute(0,2,3,1)
+        num_src = src_rgbs.shape[0]
+        src_cameras = torch.cat([torch.tile(img_size, (num_src, 1)), 
+                            output['ref_imgs_info']['poses'].reshape(num_src, -1), 
+                            output['ref_imgs_info']['Ks'].reshape(num_src, -1)], dim=1)     
+        return {
+            "rgb": rgb,            # target rgbs
+            "camera": camera,      # image shape + pose + intrinsics
+            "labels": labels,      # target semantic labels
+            "rgb_path": "None",
+            "src_rgbs": src_rgbs,  # [8, 240, 320, 3]
+            "src_cameras":src_cameras,
+            "src_labels": src_labels,      # target semantic labels
+            "depth_range": depth_range,
+        }
     def __len__(self):
         return self.num

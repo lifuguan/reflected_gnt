@@ -1,11 +1,12 @@
 
-expname: train_cra_scannet
+expname: fc_GNT
 rootdir: ./
 render_stride: 2
 distributed: False
 
 ### TRAINING
-N_rand: 2048
+N_rand: 512   # 每次训练的渲染光束
+num_source_views: 8
 lrate_feature: 0.001
 lrate_gnt: 0.0005
 lrate_decay_factor: 0.5
@@ -14,18 +15,18 @@ single_net: True
 trans_depth: 8
 
 ### TESTING
-chunk_size: 2000
+chunk_size: 2048
 
 ### RENDERING
-N_importance: 0
-N_samples: 64
+N_importance: 64
+N_samples: 64  # 每条光束的采样点
 inv_uniform: True
 white_bkgd: False
 
 ### CONSOLE AND TENSORBOARD
-i_img: 50000
+total_step: 600000
 i_print: 100
-i_weights: 50000
+save_interval: 60000
 
 # dataset
 train_dataset: scannet
@@ -34,7 +35,10 @@ resolution_type: lr
 type2sample_weights: {"scannet": 1}
 train_database_types: [scannet]
 aug_pixel_center_sample: true
-train_ray_num: 2048
+train_ray_num: 512
+
+num_classes: 20
+ignore_label: 20
 
 val_set_list: configs/scannetv2_val_split.txt
 

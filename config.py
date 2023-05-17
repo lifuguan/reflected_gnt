@@ -178,10 +178,10 @@ def config_parser():
     ########## logging/saving options ##########
     parser.add_argument("--i_print", type=int, default=100, help="frequency of terminal printout")
     parser.add_argument(
-        "--i_img", type=int, default=500, help="frequency of tensorboard image logging"
+        "--total_step", type=int, default=500, help="frequency of tensorboard image logging"
     )
     parser.add_argument(
-        "--i_weights", type=int, default=10000, help="frequency of weight ckpt saving"
+        "--save_interval", type=int, default=10000, help="frequency of weight ckpt saving"
     )
 
     ########## evaluation options ##########
@@ -206,4 +206,8 @@ def config_parser():
     parser.add_argument('--resolution_type', type=str, default="lr")
     parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_val_split.txt")
 
+    parser.add_argument('--num_classes', type=int, default=20)
+    parser.add_argument('--ignore_label', type=int, default=20)
+
+    parser.add_argument('--save_feature', type=bool, default=False)
     return parser

@@ -363,9 +363,9 @@ class RFFRDataset(BaseDataset):
                         'masks_valid': self.all_masks_valid[idx]}
             else:
                 i_patch = torch.randint(high=self.n_patches, size=(1,))[0].item()
-                i_img, i_patch = i_patch // self.n_img_patches, i_patch % self.n_img_patches
+                total_step, i_patch = i_patch // self.n_img_patches, i_patch % self.n_img_patches
                 row, col = i_patch // (self.img_wh[0] - self.patch_size + 1), i_patch % (self.img_wh[0] - self.patch_size + 1)
-                start_idx = i_img * self.img_wh[0] * self.img_wh[1] + row * self.img_wh[0] + col
+                start_idx = total_step * self.img_wh[0] * self.img_wh[1] + row * self.img_wh[0] + col
                 idxs = start_idx + torch.cat([torch.arange(self.patch_size) + i * self.img_wh[0] for i in range(self.patch_size)])
                 sample = {
                     'rays': self.all_rays[idxs],

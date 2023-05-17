@@ -32,6 +32,6 @@ inv_uniform = True
 white_bkgd = False
 
 ### CONSOLE AND TENSORBOARD
-i_img = 50000
+total_step = 50000
 i_print = 100
-i_weights = 50000
+save_interval = 50000

@@ -32,6 +32,7 @@ class RaySamplerSingleImage(object):
         super().__init__()
         self.render_stride = render_stride
         self.rgb = data["rgb"] if "rgb" in data.keys() else None
+        self.labels = data["labels"] if "labels" in data.keys() else None
         self.camera = data["camera"]
         self.rgb_path = data["rgb_path"]
         self.depth_range = data["depth_range"]
@@ -51,12 +52,18 @@ class RaySamplerSingleImage(object):
                 self.rgb = F.interpolate(
                     self.rgb.permute(0, 3, 1, 2), scale_factor=resize_factor
                 ).permute(0, 2, 3, 1)
+            if self.labels is not None:
+                self.labels = F.interpolate(
+                    self.labels.permute(0, 3, 1, 2), scale_factor=resize_factor
+                ).permute(0, 2, 3, 1)
 
         self.rays_o, self.rays_d = self.get_rays_single_image(
             self.H, self.W, self.intrinsics, self.c2w_mat
         )
         if self.rgb is not None:
             self.rgb = self.rgb.reshape(-1, 3)
+        if self.labels is not None:
+            self.labels = self.labels.reshape(-1, 1)
 
         if "src_rgbs" in data.keys():
             self.src_rgbs = data["src_rgbs"]
@@ -66,6 +73,10 @@ class RaySamplerSingleImage(object):
             self.src_cameras = data["src_cameras"]
         else:
             self.src_cameras = None
+        if "src_labels" in data.keys():
+            self.src_labels = data["src_labels"]
+        else:
+            self.src_labels = None
 
     def get_rays_single_image(self, H, W, intrinsics, c2w):
         """
@@ -101,6 +112,8 @@ class RaySamplerSingleImage(object):
             "camera": self.camera.cuda(),
             "rgb": self.rgb.cuda() if self.rgb is not None else None,
             "src_rgbs": self.src_rgbs.cuda() if self.src_rgbs is not None else None,
+            "labels": self.labels.cuda() if self.labels is not None else None,
+            "src_labels": self.src_labels.cuda() if self.src_labels is not None else None,
             "src_cameras": self.src_cameras.cuda() if self.src_cameras is not None else None,
         }
         return ret
@@ -144,6 +157,11 @@ class RaySamplerSingleImage(object):
         else:
             rgb = None
 
+        if self.labels is not None:
+            labels = self.labels[select_inds]
+        else:
+            labels = None
+
         ret = {
             "ray_o": rays_o.cuda(),
             "ray_d": rays_d.cuda(),
@@ -151,6 +169,8 @@ class RaySamplerSingleImage(object):
             "depth_range": self.depth_range.cuda(),
             "rgb": rgb.cuda() if rgb is not None else None,
             "src_rgbs": self.src_rgbs.cuda() if self.src_rgbs is not None else None,
+            "labels": labels.cuda() if labels is not None else None,
+            "src_labels": self.src_labels.cuda() if self.src_labels is not None else None,
             "src_cameras": self.src_cameras.cuda() if self.src_cameras is not None else None,
             "selected_inds": select_inds,
         }

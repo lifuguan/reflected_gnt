@@ -26,3 +26,8 @@ export CUDA_VISIBLE_DEVICES=0,1,2,3
 python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        train.py --config configs/gnt_ft_rffr.txt --expname vanilla_Nray --N_rand 1024 --N_samples 192
+
+
+python -m torch.distributed.launch --nproc_per_node=8 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/cra/train_gnt_scannet.yaml

@@ -12,13 +12,14 @@ from gnt.render_ray import render_rays
 from gnt.render_image import render_single_image
 from gnt.model import GNTModel
 from gnt.sample_ray import RaySamplerSingleImage
-from gnt.criterion import Criterion
+from gnt.criterion import SemanticCriterion
 from utils import img2mse, mse2psnr, img_HWC2CHW, img2psnr, colorize, img2psnr, lpips, ssim
 import config
 import torch.distributed as dist
 from gnt.projection import Projector
 from gnt.data_loaders.create_training_dataset import create_training_dataset
 import imageio
+import wandb 
 
 def setup_for_distributed(is_master):
     """
@@ -130,7 +131,7 @@ def train(args):
     projector = Projector(device=device)
 
     # Create criterion
-    criterion = Criterion()
+    criterion = SemanticCriterion(args)
     scalars_to_log = {}
 
     global_step = model.start_step + 1
@@ -156,13 +157,15 @@ def train(args):
                 center_ratio=args.center_ratio,
             )
 
-            featmaps = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-
+            outs = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            deep_semantics = outs[2]     # encoder的语义输出
+            featmaps = outs[:-1]
             ret = render_rays(
                 ray_batch=ray_batch,
                 model=model,
                 projector=projector,
                 featmaps=featmaps,
+                deep_semantics=deep_semantics, # encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
                 N_importance=args.N_importance,
@@ -170,20 +173,26 @@ def train(args):
                 white_bkgd=args.white_bkgd,
                 ret_alpha=args.N_importance > 0,
                 single_net=args.single_net,
+                save_feature=args.save_feature,
             )
 
             # compute loss
             model.optimizer.zero_grad()
-            loss, scalars_to_log = criterion(ret["outputs_coarse"], ray_batch, scalars_to_log)
-
+            coarse_rgb_loss, coarse_label_loss, scalars_to_log = criterion(ret["outputs_coarse"], ray_batch, scalars_to_log)
+            loss = coarse_rgb_loss + coarse_label_loss
             if ret["outputs_fine"] is not None:
-                fine_loss, scalars_to_log = criterion(
+                fine_rgb_loss, fine_label_loss, scalars_to_log = criterion(
                     ret["outputs_fine"], ray_batch, scalars_to_log
                 )
-                loss += fine_loss
+                loss += fine_rgb_loss + fine_label_loss
 
             loss.backward()
             scalars_to_log["loss"] = loss.item()
+            scalars_to_log["coarse_rgb_loss"] = coarse_rgb_loss.item()
+            scalars_to_log["coarse_label_loss"] = coarse_rgb_loss.item()
+            if ret["outputs_fine"] is not None:
+                scalars_to_log["fine_rgb_loss"] = coarse_rgb_loss.item()
+                scalars_to_log["fine_label_loss"] = coarse_rgb_loss.item()
             model.optimizer.step()
             model.scheduler.step()
 
@@ -192,16 +201,23 @@ def train(args):
             dt = time.time() - time0
 
             # Rest is logging
-            if args.local_rank == 0:
+            if args.rank == 0:
                 if global_step % args.i_print == 0 or global_step < 10:
                     # write mse and psnr stats
                     mse_error = img2mse(ret["outputs_coarse"]["rgb"], ray_batch["rgb"]).item()
                     scalars_to_log["train/coarse-loss"] = mse_error
                     scalars_to_log["train/coarse-psnr-training-batch"] = mse2psnr(mse_error)
+                    iou_metric = criterion.compute_label_loss(ret["outputs_coarse"]["sems"], \
+                                                   ray_batch["labels"])
+                    scalars_to_log["train/coarse-iou-training-batch"] = iou_metric.item()
+
                     if ret["outputs_fine"] is not None:
                         mse_error = img2mse(ret["outputs_fine"]["rgb"], ray_batch["rgb"]).item()
                         scalars_to_log["train/fine-loss"] = mse_error
                         scalars_to_log["train/fine-psnr-training-batch"] = mse2psnr(mse_error)
+                        iou_metric = criterion.compute_label_loss(ret["outputs_fine"]["sems"], \
+                                                    ray_batch["labels"])
+                        scalars_to_log["train/fine-iou-training-batch"] = iou_metric.item()
 
                     logstr = "{} Epoch: {}  step: {} ".format(args.expname, epoch, global_step)
                     for k in scalars_to_log.keys():
@@ -209,12 +225,14 @@ def train(args):
                     print(logstr)
                     print("each iter time {:.05f} seconds".format(dt))
 
-                if global_step % args.i_weights == 0:
+                if args.expname != 'debug':
+                    wandb.log(scalars_to_log)
+                if global_step % args.save_interval == 0:
                     print("Saving checkpoints at {} to {}...".format(global_step, out_folder))
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
 
-                if global_step % args.i_img == 0:
+                if global_step % args.total_step == 0:
                     print("Evaluating...")
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
                         psnr_scores,lpips_scores,ssim_scores = [],[],[]
@@ -224,6 +242,7 @@ def train(args):
                             )
                             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
                             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
+                            gt_labels = tmp_ray_sampler.labels.reshape(H, W, 3)
                             psnr_curr_img, lpips_curr_img, ssim_curr_img = log_view(
                                 global_step,
                                 args,
@@ -231,6 +250,7 @@ def train(args):
                                 tmp_ray_sampler,
                                 projector,
                                 gt_img,
+                                gt_labels,
                                 render_stride=args.render_stride,
                                 prefix="val/",
                                 out_folder=out_folder,
@@ -261,6 +281,7 @@ def log_view(
     ray_sampler,
     projector,
     gt_img,
+    gt_labels,
     render_stride=1,
     prefix="",
     out_folder="",
@@ -271,7 +292,9 @@ def log_view(
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
         if model.feature_net is not None:
-            featmaps = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            outs = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            deep_semantics = outs[2]     # encoder的语义输出
+            featmaps = outs[:-1]
         else:
             featmaps = [None, None]
         ret = render_single_image(
@@ -286,6 +309,7 @@ def log_view(
             N_importance=args.N_importance,
             white_bkgd=args.white_bkgd,
             render_stride=render_stride,
+            deep_semantics=deep_semantics, # encoder的语义输出
             featmaps=featmaps,
             ret_alpha=ret_alpha,
             single_net=single_net,
@@ -374,8 +398,22 @@ if __name__ == "__main__":
         [82, 84, 163],    # otherfurn
         [248, 166, 116]  # invalid
     ]
-
     init_distributed_mode(args)
+    if args.rank == 0 and args.expname != 'debug':
+        wandb.init(
+            # set the wandb project where this run will be logged
+            entity="lifuguan",
+            project="General-NeRF",
+            name=args.expname,
+            
+            # track hyperparameters and run metadata
+            config={
+            "N_samples": args.N_samples,
+            "N_importance": args.N_importance,
+            "chunk_size": args.chunk_size,
+            "N_rand": args.N_rand,
+            }
+        )
 
     train(args)
 

@@ -66,7 +66,7 @@ def sample_along_camera_ray(ray_o, ray_d, depth_range, N_samples, inv_uniform=Fa
     """
     # will sample inside [near_depth, far_depth]
     # assume the nearest possible depth is at least (min_ratio * depth)
-    near_depth_value = depth_range[0, 0]
+    near_depth_value = depth_range[0, 0]  # 相当于Semantic-Ray中的get_diff_feats函数
     far_depth_value = depth_range[0, 1]
     assert near_depth_value > 0 and far_depth_value > 0 and far_depth_value > near_depth_value
 
@@ -204,6 +204,7 @@ def render_rays(
     white_bkgd=False,
     ret_alpha=False,
     single_net=True,
+    save_feature=False,
 ):
     """
     :param ray_batch: {'ray_o': [N_rays, 3] , 'ray_d': [N_rays, 3], 'view_dir': [N_rays, 2]}
@@ -248,14 +249,15 @@ def render_rays(
     # )  # [N_rays, N_samples], should at least have 2 observations
 
     out = model.net_coarse(rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d)
-    rgb, feats = out
+    rgb_out, feats_out, sem_out = out
     if ret_alpha:
-        rgb, weights = rgb[:, 0:3], rgb[:, 3:]
+        rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
         depth_map = torch.sum(weights * z_vals, dim=-1)
     else:
         weights = None
         depth_map = None
-    ret["outputs_coarse"] = {"rgb": rgb, "weights": weights, "depth": depth_map, "feats": feats}
+    ret["outputs_coarse"] = {"rgb": rgb_out, "weights": weights, \
+                             "depth": depth_map, "feats": feats_out, "sems": sem_out}
 
     if N_importance > 0:
         # detach since we would like to decouple the coarse and fine networks
@@ -282,9 +284,10 @@ def render_rays(
             out = model.net_coarse(rgb_feat_sampled, deep_sem_feat_sampled, ray_diff, mask, pts, ray_d)
         else:
             out = model.net_fine(rgb_feat_sampled, ray_diff, mask, pts, ray_d)
-        rgb, feats = out
-        rgb, weights = rgb[:, 0:3], rgb[:, 3:]
+        rgb_out, feats_out, sem_out = out
+        rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
         depth_map = torch.sum(weights * z_vals, dim=-1)
-        ret["outputs_fine"] = {"rgb": rgb, "weights": weights, "depth": depth_map, "feats": feats}
+        ret["outputs_fine"] = {"rgb": rgb_out, "weights": weights, \
+                               "depth": depth_map, "feats": feats_out, "sems": sem_out}
 
     return ret

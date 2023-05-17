@@ -109,9 +109,17 @@ def train(args):
         sampler=train_sampler,
         shuffle=True if train_sampler is None else False,
     )
+    print(f'train set len {len(train_loader)}')
 
     # create validation dataset
-    val_dataset = dataset_dict[args.eval_dataset](args, "validation", scenes=args.eval_scenes)
+    val_set_list, val_set_names = [], []
+    if isinstance(args.val_set_list, str):
+        val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
+        for name in val_scenes:
+            val_args = {'val_database_name': name}
+            val_dataset = dataset_dict['scannet'](val_args, is_train=False)
+    else:
+        val_dataset = dataset_dict[args.eval_dataset](args, "validation", scenes=args.eval_scenes)
 
     val_loader = DataLoader(val_dataset, batch_size=1)
     val_loader_iterator = iter(cycle(val_loader))
@@ -203,12 +211,12 @@ def train(args):
                     print(logstr)
                     print("each iter time {:.05f} seconds".format(dt))
 
-                if global_step % args.i_weights == 0:
+                if global_step % args.save_interval == 0:
                     print("Saving checkpoints at {} to {}...".format(global_step, out_folder))
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
 
-                if global_step % args.i_img == 0:
+                if global_step % args.total_step == 0:
                     print("Logging a random validation view...")
                     val_data = next(val_loader_iterator)
                     tmp_ray_sampler = RaySamplerSingleImage(
