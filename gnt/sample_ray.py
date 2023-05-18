@@ -13,6 +13,13 @@ rng = np.random.RandomState(234)
 def parse_camera(params):
     H = params[:, 0]
     W = params[:, 1]
+    intrinsics = params[:, 2:11].reshape((-1, 3, 3))
+    c2w = params[:, 11:23].reshape((-1, 3, 4))
+    return W, H, intrinsics, c2w
+
+def parse_camera_ray(params):
+    H = params[:, 0]
+    W = params[:, 1]
     intrinsics = params[:, 2:18].reshape((-1, 4, 4))
     c2w = params[:, 18:34].reshape((-1, 4, 4))
     return W, H, intrinsics, c2w
@@ -37,7 +44,10 @@ class RaySamplerSingleImage(object):
         self.rgb_path = data["rgb_path"]
         self.depth_range = data["depth_range"]
         self.device = device
-        W, H, self.intrinsics, self.c2w_mat = parse_camera(self.camera)
+        if self.camera.shape[-1] == 34:
+            W, H, self.intrinsics, self.c2w_mat = parse_camera_ray(self.camera)
+        else:
+            W, H, self.intrinsics, self.c2w_mat = parse_camera(self.camera)
         self.batch_size = len(self.camera)
 
         self.H = int(H[0])

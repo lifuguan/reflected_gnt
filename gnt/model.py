@@ -128,11 +128,11 @@ class GNTModel(object):
         if load_scheduler:
             self.scheduler.load_state_dict(to_load["scheduler"])
 
-        self.net_coarse.load_state_dict(to_load["net_coarse"])
-        self.feature_net.load_state_dict(to_load["feature_net"])
+        self.net_coarse.load_state_dict(to_load["net_coarse"], strict=False)
+        self.feature_net.load_state_dict(to_load["feature_net"], strict=False)
 
         if self.net_fine is not None and "net_fine" in to_load.keys():
-            self.net_fine.load_state_dict(to_load["net_fine"])
+            self.net_fine.load_state_dict(to_load["net_fine"], strict=False)
 
     def load_from_ckpt(
         self, out_folder, load_opt=True, load_scheduler=True, force_latest_ckpt=False
@@ -159,7 +159,10 @@ class GNTModel(object):
         if len(ckpts) > 0 and not self.args.no_reload:
             fpath = ckpts[-1]
             self.load_model(fpath, load_opt, load_scheduler)
-            step = int(fpath[-10:-4])
+            try:
+                step = int(fpath[-10:-4])
+            except:
+                step = 0
             print("Reloading from {}, starting at step={}".format(fpath, step))
         else:
             print("No ckpts found, training from scratch...")

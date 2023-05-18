@@ -14,7 +14,7 @@ eval_scenes = [trex, fern, flower, leaves, room, fortress, horns, orchids]
 # eval_scenes = [chair, drums, ficus, hotdog, materials, mic, ship, lego]
 
 ### TRAINING
-N_rand = 2048
+N_rand = 512
 lrate_feature = 0.001
 lrate_gnt = 0.0005
 lrate_decay_factor = 0.5
@@ -23,7 +23,7 @@ single_net = True
 trans_depth = 8
 
 ### TESTING
-chunk_size = 2000
+chunk_size = 2048
 
 ### RENDERING
 N_importance = 0

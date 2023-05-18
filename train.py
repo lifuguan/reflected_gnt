@@ -19,6 +19,7 @@ import torch.distributed as dist
 from gnt.projection import Projector
 from gnt.data_loaders.create_training_dataset import create_training_dataset
 import imageio
+import wandb 
 
 def setup_for_distributed(is_master):
     """
@@ -45,6 +46,7 @@ def init_distributed_mode(args):
     else:
         print('Not using distributed mode')
         args.distributed = False
+        args.rank=0
         return
 
     args.distributed = True
@@ -158,13 +160,15 @@ def train(args):
                 center_ratio=args.center_ratio,
             )
 
-            featmaps = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-
+            outs = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            deep_semantics = outs[2]     # encoder的语义输出
+            featmaps = outs[:-1]
             ret = render_rays(
                 ray_batch=ray_batch,
                 model=model,
                 projector=projector,
                 featmaps=featmaps,
+                deep_semantics=deep_semantics, # encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
                 N_importance=args.N_importance,
@@ -356,31 +360,23 @@ if __name__ == "__main__":
     parser = config.config_parser()
     args = parser.parse_args()
 
-    args.semantic_color_map=[
-        [174, 199, 232],  # wall
-        [152, 223, 138],  # floor
-        [31, 119, 180],   # cabinet
-        [255, 187, 120],  # bed
-        [188, 189, 34],   # chair
-        [140, 86, 75],    # sofa
-        [255, 152, 150],  # table
-        [214, 39, 40],    # door
-        [197, 176, 213],  # window
-        [148, 103, 189],  # bookshelf
-        [196, 156, 148],  # picture
-        [23, 190, 207],   # counter
-        [247, 182, 210],  # desk
-        [219, 219, 141],  # curtain
-        [255, 127, 14],   # refrigerator
-        [91, 163, 138],   # shower curtain
-        [44, 160, 44],    # toilet
-        [112, 128, 144],  # sink
-        [227, 119, 194],  # bathtub
-        [82, 84, 163],    # otherfurn
-        [248, 166, 116]  # invalid
-    ]
-
     init_distributed_mode(args)
-
+    if args.rank == 0 and args.expname != 'debug':
+        wandb.init(
+            # set the wandb project where this run will be logged
+            entity="lifuguan",
+            project="General-NeRF",
+            name=args.expname,
+            
+            # track hyperparameters and run metadata
+            config={
+            "N_samples": args.N_samples,
+            "N_importance": args.N_importance,
+            "chunk_size": args.chunk_size,
+            "N_rand": args.N_rand,
+            "semantic_loss_scale": args.semantic_loss_scale,
+            "render_loss_scale": args.render_loss_scale,
+            }
+        )
     train(args)
 

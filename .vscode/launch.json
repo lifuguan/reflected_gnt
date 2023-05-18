@@ -11,7 +11,7 @@
             "program": "${workspaceFolder}/train.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_full.txt"]
+            "args": ["--config", "configs/gnt_full.txt", "--expname", "debug", "--N_importance", "1"]
         },
         {
             "name": "train: single view",
@@ -65,7 +65,16 @@
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/cra/train_gnt_scannet.yaml", "--expname", "debug"]
+            "args": ["--config", "configs/cra/train_gnt_scannet.yaml", "--expname", "debug","--ckpt_path", "./out/gnt_full/model_720000.pth", "--no_load_opt"]
+        },
+        {
+            "name": "eval: semantic",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval_scannet.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/cra/train_gnt_scannet.yaml", "--expname", "fc_GNT", "--no_load_opt"]
         },
     ]
 }

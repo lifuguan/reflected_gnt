@@ -359,6 +359,7 @@ class RendererDataset(Dataset):
 
     def switch_to_gnt(self, output: dict):
         rgb = output['que_imgs_info']['imgs'].squeeze(0).permute(1,2,0)
+        masks = output['que_imgs_info']['masks'].squeeze(0).permute(1,2,0)
         img_size = torch.tensor(rgb.shape[:2], device=rgb.device)
         camera = torch.cat([img_size, 
                             output['que_imgs_info']['poses'].flatten(), 

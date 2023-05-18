@@ -46,6 +46,7 @@ def init_distributed_mode(args):
     else:
         print('Not using distributed mode')
         args.distributed = False
+        args.rank=0
         return
 
     args.distributed = True
@@ -179,12 +180,12 @@ def train(args):
             # compute loss
             model.optimizer.zero_grad()
             coarse_rgb_loss, coarse_label_loss, scalars_to_log = criterion(ret["outputs_coarse"], ray_batch, scalars_to_log)
-            loss = coarse_rgb_loss + coarse_label_loss
+            loss = args.render_loss_scale * coarse_rgb_loss + args.semantic_loss_scale * coarse_label_loss
             if ret["outputs_fine"] is not None:
                 fine_rgb_loss, fine_label_loss, scalars_to_log = criterion(
                     ret["outputs_fine"], ray_batch, scalars_to_log
                 )
-                loss += fine_rgb_loss + fine_label_loss
+                loss += args.render_loss_scale * fine_rgb_loss + args.semantic_loss_scale * fine_label_loss
 
             loss.backward()
             scalars_to_log["loss"] = loss.item()
@@ -242,7 +243,7 @@ def train(args):
                             )
                             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
                             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
-                            gt_labels = tmp_ray_sampler.labels.reshape(H, W, 3)
+                            gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
                             psnr_curr_img, lpips_curr_img, ssim_curr_img = log_view(
                                 global_step,
                                 args,
@@ -360,9 +361,14 @@ def log_view(
         if ret["outputs_fine"] is not None
         else ret["outputs_coarse"]["rgb"]
     )
+    pred_labels = (
+        ret["outputs_fine"]["labels"]
+        if ret["outputs_fine"] is not None else ret["outputs_coarse"]["labels"]
+    )
     lpips_curr_img = lpips(pred_rgb, gt_img, format="HWC").item()
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
+    psnr_curr_img = SemanticCriterion.compute_label_loss(pred_labels, gt_labels)
     print(prefix + "psnr_image: ", psnr_curr_img)
     print(prefix + "lpips_image: ", lpips_curr_img)
     print(prefix + "ssim_image: ", ssim_curr_img)
@@ -412,6 +418,8 @@ if __name__ == "__main__":
             "N_importance": args.N_importance,
             "chunk_size": args.chunk_size,
             "N_rand": args.N_rand,
+            "semantic_loss_scale": args.semantic_loss_scale,
+            "render_loss_scale": args.render_loss_scale,
             }
         )
 

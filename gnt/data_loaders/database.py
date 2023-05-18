@@ -67,7 +67,7 @@ class ScannetDatabase(BaseDatabase):
         rgb_paths = sorted(rgb_paths)
 
         K = np.loadtxt(
-            f'{self.root_dir}/intrinsic/intrinsic_color.txt').reshape([4, 4])
+            f'{self.root_dir}/intrinsic/intrinsic_color.txt').reshape([4, 4])[:3, :3]
         # After resize, we need to change the intrinsic matrix
         K[:2, :] *= self.ratio
         self.K = K
@@ -111,7 +111,8 @@ class ScannetDatabase(BaseDatabase):
 
     def get_pose(self, img_id):
         pose = np.loadtxt(
-            f'{self.root_dir}/pose/{int(img_id)}.txt').reshape([4, 4])
+            f'{self.root_dir}/pose/{int(img_id)}.txt').reshape([4, 4])[:3, :]
+        # pose = pose_inverse(pose)
         return pose.copy()
 
     def get_img_ids(self, check_depth_exist=False):

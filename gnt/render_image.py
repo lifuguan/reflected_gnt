@@ -39,7 +39,7 @@ def render_single_image(
     for i in range(0, N_rays, chunk_size):
         chunk = OrderedDict()
         for k in ray_batch:
-            if k in ["camera", "depth_range", "src_rgbs", "src_cameras"]:
+            if k in ["camera", "depth_range", "src_rgbs", "src_cameras", "labels", "src_labels"]:
                 chunk[k] = ray_batch[k]
             elif ray_batch[k] is not None:
                 chunk[k] = ray_batch[k][i : i + chunk_size]
@@ -90,7 +90,7 @@ def render_single_image(
     for k in all_ret["outputs_coarse"]:
         if k == "random_sigma":
             continue
-        elif k == "feats":
+        elif k == "feats" and all_ret["outputs_coarse"][k] is not None:
             feat_tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
                 (feat_strided.shape[0], feat_strided.shape[1], 256, -1)   # 256是深层语义的维度
             )
@@ -106,6 +106,11 @@ def render_single_image(
         for k in all_ret["outputs_fine"]:
             if k == "random_sigma":
                 continue
+            elif k == "feats" and all_ret["outputs_fine"][k] is not None:
+                feat_tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
+                    (feat_strided.shape[0], feat_strided.shape[1], 256, -1)   # 256是深层语义的维度
+                )
+                all_ret["outputs_fine"][k] = feat_tmp.squeeze() 
             tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
                 (rgb_strided.shape[0], rgb_strided.shape[1], -1)
             )

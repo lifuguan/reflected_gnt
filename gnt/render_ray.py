@@ -210,7 +210,7 @@ def render_rays(
     :param ray_batch: {'ray_o': [N_rays, 3] , 'ray_d': [N_rays, 3], 'view_dir': [N_rays, 2]}
     :param model:  {'net_coarse':  , 'net_fine': }
     :param featmaps:  参考视图的特征图 （decoder的输出）
-    :param featmaps:  参考视图的特征图（高级语义，encoder的输出）
+    :param deep_semantics:  参考视图的特征图（高级语义，encoder的输出）
     :param N_samples: samples along each ray (for both coarse and fine model)
     :param inv_uniform: if True, uniformly sample inverse depth for coarse model
     :param N_importance: additional samples along each ray produced by importance sampling (for fine model)

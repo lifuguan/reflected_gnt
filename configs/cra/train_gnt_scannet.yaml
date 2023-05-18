@@ -8,18 +8,21 @@ distributed: False
 N_rand: 512   # 每次训练的渲染光束
 num_source_views: 8
 lrate_feature: 0.001
-lrate_gnt: 0.0005
+lrate_gnt: 0.001
 lrate_decay_factor: 0.5
-lrate_decay_steps: 50000
+lrate_decay_steps: 500000
 single_net: True
 trans_depth: 8
+
+render_loss_scale: 1.0
+semantic_loss_scale: 0.0
 
 ### TESTING
 chunk_size: 2048
 
 ### RENDERING
-N_importance: 64
-N_samples: 64  # 每条光束的采样点
+N_importance: 32
+N_samples: 96  # 每条光束的采样点
 inv_uniform: True
 white_bkgd: False
 
