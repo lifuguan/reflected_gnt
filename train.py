@@ -220,6 +220,9 @@ def train(args):
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
 
+                if args.expname != 'debug':
+                    wandb.log(scalars_to_log)
+                    
                 if global_step % args.total_step == 0:
                     print("Logging a random validation view...")
                     val_data = next(val_loader_iterator)

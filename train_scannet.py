@@ -208,17 +208,19 @@ def train(args):
                     mse_error = img2mse(ret["outputs_coarse"]["rgb"], ray_batch["rgb"]).item()
                     scalars_to_log["train/coarse-loss"] = mse_error
                     scalars_to_log["train/coarse-psnr-training-batch"] = mse2psnr(mse_error)
-                    iou_metric = criterion.compute_label_loss(ret["outputs_coarse"]["sems"], \
-                                                   ray_batch["labels"])
-                    scalars_to_log["train/coarse-iou-training-batch"] = iou_metric.item()
+                    if args.semantic_output is True:
+                        iou_metric = criterion.compute_label_loss(ret["outputs_coarse"]["sems"], \
+                                                    ray_batch["labels"])
+                        scalars_to_log["train/coarse-iou-training-batch"] = iou_metric.item()
 
                     if ret["outputs_fine"] is not None:
                         mse_error = img2mse(ret["outputs_fine"]["rgb"], ray_batch["rgb"]).item()
                         scalars_to_log["train/fine-loss"] = mse_error
                         scalars_to_log["train/fine-psnr-training-batch"] = mse2psnr(mse_error)
-                        iou_metric = criterion.compute_label_loss(ret["outputs_fine"]["sems"], \
-                                                    ray_batch["labels"])
-                        scalars_to_log["train/fine-iou-training-batch"] = iou_metric.item()
+                        if args.semantic_output is True:
+                            iou_metric = criterion.compute_label_loss(ret["outputs_fine"]["sems"], \
+                                                        ray_batch["labels"])
+                            scalars_to_log["train/fine-iou-training-batch"] = iou_metric.item()
 
                     logstr = "{} Epoch: {}  step: {} ".format(args.expname, epoch, global_step)
                     for k in scalars_to_log.keys():

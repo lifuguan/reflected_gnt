@@ -266,7 +266,10 @@ class GNT(nn.Module):
         self.save_feature = args.save_feature # 输出深层次feature作为demo
         self.norm = nn.LayerNorm(args.netwidth)
         self.rgb_fc = nn.Linear(args.netwidth, 3)
-        self.semantic_fc = nn.Linear(args.netwidth, args.num_classes + 1)
+
+        self.semantic_output = args.semantic_output
+        if self.semantic_output is True:
+            self.semantic_fc = nn.Linear(args.netwidth, args.num_classes + 1)
 
         self.relu = nn.ReLU()
         self.pos_enc = Embedder(
@@ -328,7 +331,10 @@ class GNT(nn.Module):
         # normalize & rgb
         h = self.norm(q)
         outputs = self.rgb_fc(h.mean(dim=1))
-        sem_outputs = self.semantic_fc(h.mean(dim=1))
+        if self.semantic_output is True:
+            sem_outputs = self.semantic_fc(h.mean(dim=1))
+        else:
+            sem_outputs = None
         if self.ret_alpha and self.save_feature is False:
             return torch.cat([outputs, attn], dim=1), None, sem_outputs
         elif self.ret_alpha and self.save_feature:

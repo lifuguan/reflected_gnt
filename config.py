@@ -213,4 +213,5 @@ def config_parser():
     parser.add_argument('--semantic_loss_scale', type=float, default=0.25)
 
     parser.add_argument('--save_feature', type=bool, default=False)
+    parser.add_argument('--semantic_output', action="store_true")
     return parser

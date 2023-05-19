@@ -53,6 +53,8 @@ class SemanticCriterion(nn.Module):
         gt_rgb, gt_label = ray_batch["rgb"], ray_batch["labels"]
 
         rgb_loss = img2mse(pred_rgb, gt_rgb, pred_mask)
-        label_loss = self.compute_label_loss(pred_label, gt_label)
-
+        if pred_label is not None:
+            label_loss = self.compute_label_loss(pred_label, gt_label)
+        else:
+            label_loss = 0
         return rgb_loss, label_loss, scalars_to_log
