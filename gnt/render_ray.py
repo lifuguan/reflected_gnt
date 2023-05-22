@@ -205,6 +205,7 @@ def render_rays(
     ret_alpha=False,
     single_net=True,
     save_feature=False,
+    model_type = 'gnt',
 ):
     """
     :param ray_batch: {'ray_o': [N_rays, 3] , 'ray_d': [N_rays, 3], 'view_dir': [N_rays, 2]}
@@ -244,20 +245,25 @@ def render_rays(
         deep_semantics=deep_semantics,
     )  # [N_rays, N_samples, N_views, x]
     # TODO: include pixel mask in ray transformer
-    # pixel_mask = (
-    #     mask[..., 0].sum(dim=2) > 1
-    # )  # [N_rays, N_samples], should at least have 2 observations
-
-    out = model.net_coarse(rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d)
-    rgb_out, feats_out, sem_out = out
-    if ret_alpha:
-        rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
-        depth_map = torch.sum(weights * z_vals, dim=-1)
+    pixel_mask = (
+        mask[..., 0].sum(dim=2) > 1
+    )  # [N_rays, N_samples], should at least have 2 observations
+    if model_type == 'gnt':
+        out = model.net_coarse(rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d)
+        rgb_out, feats_out, sem_out = out
+        if ret_alpha:
+            rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
+            depth_map = torch.sum(weights * z_vals, dim=-1)
+        else:
+            weights = None
+            depth_map = None
+        ret["outputs_coarse"] = {"rgb": rgb_out, "weights": weights, \
+                                "depth": depth_map, "feats": feats_out, "sems": sem_out}
     else:
-        weights = None
-        depth_map = None
-    ret["outputs_coarse"] = {"rgb": rgb_out, "weights": weights, \
-                             "depth": depth_map, "feats": feats_out, "sems": sem_out}
+        raw_coarse,_,_ = model.net_coarse(rgb_feat, ray_diff, mask)
+        ret["outputs_coarse"] = raw2outputs(raw_coarse, z_vals, pixel_mask,
+                                 white_bkgd=white_bkgd)
+        ret["outputs_coarse"]["sems"] = None
 
     if N_importance > 0:
         # detach since we would like to decouple the coarse and fine networks

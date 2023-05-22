@@ -1,0 +1,33 @@
+### INPUT
+expname = gnt_full
+rootdir = ./
+render_stride = 2
+distributed = False
+
+## dataset
+train_dataset = scannet
+dataset_weights = [1]
+eval_dataset = scannet
+
+### TRAINING
+N_rand = 512
+lrate_feature = 0.001
+lrate_gnt = 0.0005
+lrate_decay_factor = 0.5
+lrate_decay_steps = 50000
+single_net = True
+trans_depth = 8
+
+### TESTING
+chunk_size = 2048
+
+### RENDERING
+N_importance = 32
+N_samples = 64
+inv_uniform = True
+white_bkgd = False
+
+### CONSOLE AND TENSORBOARD
+total_step = 50000
+i_print = 50
+save_interval = 5000

@@ -11,6 +11,7 @@ from natsort import natsorted
 
 from .utils.base_utils import downsample_gaussian_blur, pose_inverse
 from .semantic_utils import PointSegClassMapping
+from asset import *
 
 
 class BaseDatabase(abc.ABC):

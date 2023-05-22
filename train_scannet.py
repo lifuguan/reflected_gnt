@@ -11,6 +11,7 @@ from gnt.data_loaders import dataset_dict
 from gnt.render_ray import render_rays
 from gnt.render_image import render_single_image
 from gnt.model import GNTModel
+from gnt.ibrnet import IBRNetModel
 from gnt.sample_ray import RaySamplerSingleImage
 from gnt.criterion import SemanticCriterion
 from utils import img2mse, mse2psnr, img_HWC2CHW, img2psnr, colorize, img2psnr, lpips, ssim
@@ -117,17 +118,21 @@ def train(args):
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in val_scenes:
-        val_args = {'val_database_name': name}
-        val_dataset = dataset_dict['scannet'](val_args, is_train=False)
+        val_dataset = dataset_dict['scannet'](args, is_train=False)
         val_loader = DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
         val_set_names.append(name)
         print(f'{name} val set len {len(val_loader)}')
 
     # Create GNT model
-    model = GNTModel(
-        args, load_opt=not args.no_load_opt, load_scheduler=not args.no_load_scheduler
-    )
+    if args.model == 'gnt':
+        model = GNTModel(
+            args, load_opt=not args.no_load_opt, load_scheduler=not args.no_load_scheduler
+        )
+    elif args.model =='ibrnet':
+        model = IBRNetModel(
+            args, load_opt=not args.no_load_opt, load_scheduler=not args.no_load_scheduler
+        )
     # create projector
     projector = Projector(device=device)
 
@@ -175,12 +180,13 @@ def train(args):
                 ret_alpha=args.N_importance > 0,
                 single_net=args.single_net,
                 save_feature=args.save_feature,
+                model_type = args.model
             )
 
             # compute loss
             model.optimizer.zero_grad()
             coarse_rgb_loss, coarse_label_loss, scalars_to_log = criterion(ret["outputs_coarse"], ray_batch, scalars_to_log)
-            loss = args.render_loss_scale * coarse_rgb_loss + args.semantic_loss_scale * coarse_label_loss
+            loss = args.render_loss_scale * coarse_rgb_loss# + args.semantic_loss_scale * coarse_label_loss
             if ret["outputs_fine"] is not None:
                 fine_rgb_loss, fine_label_loss, scalars_to_log = criterion(
                     ret["outputs_fine"], ray_batch, scalars_to_log
@@ -190,7 +196,7 @@ def train(args):
             loss.backward()
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["coarse_rgb_loss"] = coarse_rgb_loss.item()
-            scalars_to_log["coarse_label_loss"] = coarse_rgb_loss.item()
+            # scalars_to_log["coarse_label_loss"] = coarse_label_loss.item()
             if ret["outputs_fine"] is not None:
                 scalars_to_log["fine_rgb_loss"] = coarse_rgb_loss.item()
                 scalars_to_log["fine_label_loss"] = coarse_rgb_loss.item()

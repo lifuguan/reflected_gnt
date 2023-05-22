@@ -65,7 +65,7 @@
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/cra/train_gnt_scannet.yaml", "--expname", "debug","--ckpt_path", "./out/gnt_full/model_720000.pth", "--no_load_opt"]
+            "args": ["--config", "configs/cra/train_gnt_scannet.yaml", "--expname", "debug","--ckpt_path", "./out/model_best.pth", "--no_load_opt"]
         },
         {
             "name": "eval: semantic",
@@ -74,7 +74,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/cra/train_gnt_scannet.yaml", "--expname", "fc_GNT", "--no_load_opt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "low_lr", "--no_load_opt", "--ckpt_path", "./out/low_lr/model_050000.pth"]
         },
     ]
 }

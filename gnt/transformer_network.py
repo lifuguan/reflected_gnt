@@ -322,7 +322,10 @@ class GNT(nn.Module):
                 q = torch.cat((q, input_pts, input_views), dim=-1)
                 q = q_fc(q)
             # ray transformer
-            q = selftrans(q, view_sem_out, ret_attn=self.ret_alpha)
+            if self.ret_alpha:
+                q = selftrans(q, view_sem_out, ret_attn=self.ret_alpha)
+            else:
+                q = selftrans(q, None, ret_attn=self.ret_alpha)
             # 'learned' density
             if self.ret_alpha:
                 q, attn, ray_sem_out = q
@@ -342,4 +345,4 @@ class GNT(nn.Module):
                    torch.stack(deep_sem_out, dim=0).sum(dim=0).mean(dim=1), \
                    sem_outputs
         else:
-            return outputs, h.mean(dim=1)
+            return outputs, None, None

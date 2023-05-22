@@ -5,12 +5,12 @@ render_stride: 2
 distributed: False
 
 ### TRAINING
-N_rand: 512   # 每次训练的渲染光束
-num_source_views: 8
+N_rand: 2048   # 每次训练的渲染光束
+num_source_views: 10
 lrate_feature: 0.001
-lrate_gnt: 0.001
+lrate_gnt: 0.0005
 lrate_decay_factor: 0.5
-lrate_decay_steps: 500000
+lrate_decay_steps: 50000
 single_net: True
 trans_depth: 8
 
@@ -21,15 +21,15 @@ semantic_loss_scale: 0.0
 chunk_size: 2048
 
 ### RENDERING
-N_importance: 32
-N_samples: 96  # 每条光束的采样点
+N_importance: 0
+N_samples: 64  # 每条光束的采样点
 inv_uniform: True
 white_bkgd: False
 
 ### CONSOLE AND TENSORBOARD
-total_step: 600000
-i_print: 100
-save_interval: 60000
+total_step: 60000
+i_print: 50
+save_interval: 6000
 
 # dataset
 train_dataset: scannet

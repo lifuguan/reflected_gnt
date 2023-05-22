@@ -38,13 +38,20 @@ python -m torch.distributed.launch --nproc_per_node=4 \
        train_scannet.py --config configs/cra/train_gnt_scannet.yaml \
        --ckpt_path ./out/gnt_full/model_best.pth --expname fc_gnt_pretrain --no_load_opt
 
-export CUDA_VISIBLE_DEVICES=4,5,6,7
-python -m torch.distributed.launch --nproc_per_node=4 \
+export CUDA_VISIBLE_DEVICES=6,7
+python -m torch.distributed.launch --nproc_per_node=2 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        train_scannet.py --config configs/cra/train_gnt_scannet.yaml \
-       --ckpt_path ./out/model_best.pth --expname no_semantic --no_load_opt
+       --ckpt_path ./out/model_best.pth --expname LOW_LR
 
 export CUDA_VISIBLE_DEVICES=4,5
 python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        train.py --config configs/gnt_full.txt --expname gnt_full --N_rand 512 --N_importance 32
+
+
+export CUDA_VISIBLE_DEVICES=2,3
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/cra/train_gnt_scannet.yaml \
+       --ckpt_path ./out/ibrnet_best.pth --expname ibrnet --model ibrnet  --no_load_opt

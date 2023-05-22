@@ -61,8 +61,7 @@ def eval(args):
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in val_scenes:
-        val_args = {'val_database_name': name}
-        val_dataset = dataset_dict['scannet'](val_args, is_train=False)
+        val_dataset = dataset_dict['scannet'](args, is_train=False)
         val_loader = DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
         val_set_names.append(name)
@@ -83,8 +82,11 @@ def eval(args):
             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
-            gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
 
+            if args.semantic_output is True:
+                gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
+            else:
+                gt_labels = None
             psnr_curr_img, lpips_curr_img, ssim_curr_img = log_view(
                 indx,
                 args,
@@ -198,10 +200,11 @@ def log_view(
         if ret["outputs_fine"] is not None
         else ret["outputs_coarse"]["rgb"]
     )
-    pred_labels = (
-        ret["outputs_fine"]["sems"]
-        if ret["outputs_fine"] is not None else ret["outputs_coarse"]["sems"]
-    )
+    if args.semantic_output is True:
+        pred_labels = (
+            ret["outputs_fine"]["sems"]
+            if ret["outputs_fine"] is not None else ret["outputs_coarse"]["sems"]
+        )
     lpips_curr_img = lpips(pred_rgb, gt_img, format="HWC").item()
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)

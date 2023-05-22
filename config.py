@@ -214,4 +214,7 @@ def config_parser():
 
     parser.add_argument('--save_feature', type=bool, default=False)
     parser.add_argument('--semantic_output', action="store_true")
+
+    parser.add_argument('--model', type=str, default='gnt')
+
     return parser
