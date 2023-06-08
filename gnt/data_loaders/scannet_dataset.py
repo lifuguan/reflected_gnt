@@ -75,8 +75,8 @@ class RendererDataset(Dataset):
         intrinsics_files = self.all_intrinsics_files[idx]
 
         id_render = np.random.choice(np.arange(len(pose_files)))
-        # train_poses = np.stack([np.loadtxt(file).reshape(4, 4) for file in pose_files], axis=0)
-        train_poses = np.stack([self.pose_inverse(np.loadtxt(file).reshape(4, 4)[:3, :]) for file in pose_files], axis=0)
+        train_poses = np.stack([np.loadtxt(file).reshape(4, 4) for file in pose_files], axis=0)
+        # train_poses = np.stack([self.pose_inverse(np.loadtxt(file).reshape(4, 4)[:3, :]) for file in pose_files], axis=0)
         render_pose = train_poses[id_render]
 
         subsample_factor = np.random.choice(np.arange(1, 6), p=[0.3, 0.25, 0.2, 0.2, 0.05])
@@ -102,7 +102,9 @@ class RendererDataset(Dataset):
             rgb = cv2.resize(downsample_gaussian_blur(
                 rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
             
-        intrinsics = np.loadtxt(intrinsics_files[id_render])
+        intrinsics = np.loadtxt(intrinsics_files[id_render]).reshape([4, 4])
+        intrinsics[:2, :] *= self.ratio
+
         img_size = rgb.shape[:2]
         camera = np.concatenate((list(img_size), intrinsics.flatten(), render_pose.flatten())).astype(
             np.float32
@@ -115,8 +117,8 @@ class RendererDataset(Dataset):
         max_radius = 0.5 * np.sqrt(2) * 1.1
         near_depth = max(origin_depth - max_radius, min_ratio * origin_depth)
         far_depth = origin_depth + max_radius
-        depth_range = torch.tensor([near_depth, far_depth])
-        # depth_range = torch.tensor([0.1, 10.0])
+        # depth_range = torch.tensor([near_depth, far_depth])
+        depth_range = torch.tensor([0.1, 10.0])
 
         src_rgbs = []
         src_cameras = []
@@ -125,14 +127,15 @@ class RendererDataset(Dataset):
             if self.w != 1296:
                 src_rgb = cv2.resize(downsample_gaussian_blur(
                     src_rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
-            # pose = np.loadtxt()
-            pose = self.pose_inverse(np.loadtxt(pose_files[id]).reshape(4, 4)[:3, :])
+            pose = np.loadtxt(pose_files[id]).reshape(4, 4)
+            # pose = self.pose_inverse(np.loadtxt(pose_files[id]).reshape(4, 4)[:3, :])
 
             if self.rectify_inplane_rotation:
                 pose, src_rgb = rectify_inplane_rotation(pose.reshape(4, 4), render_pose, src_rgb)
 
             src_rgbs.append(src_rgb)
-            intrinsics = np.loadtxt(intrinsics_files[id])
+            intrinsics = np.loadtxt(intrinsics_files[id]).reshape([4, 4])
+            intrinsics[:2, :] *= self.ratio
             img_size = src_rgb.shape[:2]
             src_camera = np.concatenate((list(img_size), intrinsics.flatten(), pose.flatten())).astype(
                 np.float32

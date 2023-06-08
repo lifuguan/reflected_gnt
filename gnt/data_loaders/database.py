@@ -11,7 +11,7 @@ from natsort import natsorted
 
 from .utils.base_utils import downsample_gaussian_blur, pose_inverse
 from .semantic_utils import PointSegClassMapping
-from asset import *
+from .asset import *
 
 
 class BaseDatabase(abc.ABC):
@@ -68,9 +68,11 @@ class ScannetDatabase(BaseDatabase):
         rgb_paths = sorted(rgb_paths)
 
         K = np.loadtxt(
-            f'{self.root_dir}/intrinsic/intrinsic_color.txt').reshape([4, 4])[:3, :3]
+            f'{self.root_dir}/intrinsic/intrinsic_color.txt').reshape([4, 4])
+        # K = np.loadtxt(
+        #     f'{self.root_dir}/intrinsic/intrinsic_color.txt').reshape([4, 4])[:3, :3]
         # After resize, we need to change the intrinsic matrix
-        K[:2, :] *= self.ratio
+        # K[:2, :] *= self.ratio
         self.K = K
 
         self.img_ids = []
@@ -111,9 +113,12 @@ class ScannetDatabase(BaseDatabase):
         return self.K.astype(np.float32)
 
     def get_pose(self, img_id):
-        pose = np.loadtxt(
-            f'{self.root_dir}/pose/{int(img_id)}.txt').reshape([4, 4])[:3, :]
+        # pose = np.loadtxt(
+        #     f'{self.root_dir}/pose/{int(img_id)}.txt').reshape([4, 4])[:3, :]
         # pose = pose_inverse(pose)
+
+        pose = np.loadtxt(
+            f'{self.root_dir}/pose/{int(img_id)}.txt').reshape([4, 4])
         return pose.copy()
 
     def get_img_ids(self, check_depth_exist=False):
