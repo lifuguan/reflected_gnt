@@ -1,28 +1,28 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .utils import mse2psnr
+from utils import mse2psnr
 
 class RenderLoss(nn.Module):
     
     def __init__(self):
         self.render_loss_scale = 1
-    def __call__(self, data_pred, data_gt, step, **kwargs):
+    def __call__(self, data_pred, data_gt, **kwargs):
         rgb_gt = data_gt["rgb"]  # 1,rn,3
-        rgb_coarse = data_pred["outputs_coarse"]["rgb"]  # 1,rn,3
+        rgb_coarse = data_pred["outputs_coarse"]["rgb"]  # rn,3
 
         def compute_loss(rgb_pr, rgb_gt):
-            loss = torch.sum((rgb_pr-rgb_gt)**2, -1)        # b,n
-            loss = torch.mean(loss, 1)
-            return loss * self.cfg['render_loss_scale']
+            loss = torch.sum((rgb_pr-rgb_gt)**2, -1)        # n
+            loss = torch.mean(loss)
+            return loss * self.render_loss_scale
 
         results = {"train/coarse-loss": compute_loss(rgb_coarse, rgb_gt)}
-        results = {"train/coarse-psnr-training-batch": mse2psnr(results["train/coarse-loss"])}
+        # results = {"train/coarse-psnr-training-batch": mse2psnr(results["train/coarse-loss"])}
 
         if data_pred["outputs_fine"] is not None:
             rgb_fine = data_pred["outputs_fine"]["rgb"]  # 1,rn,3
             results = {"train/fine-loss": compute_loss(rgb_fine, rgb_gt)}
-            results = {"train/fine-psnr-training-batch": mse2psnr(results["train/fine-loss"])}
+            # results = {"train/fine-psnr-training-batch": mse2psnr(results["train/fine-loss"])}
         return results
     
 

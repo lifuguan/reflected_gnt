@@ -15,6 +15,7 @@ from gnt.ibrnet import IBRNetModel
 from gnt.sample_ray import RaySamplerSingleImage
 from gnt.criterion import SemanticCriterion
 from utils import img2mse, mse2psnr, img_HWC2CHW, img2psnr, colorize, img2psnr, lpips, ssim
+from gnt.loss import RenderLoss
 import config
 import torch.distributed as dist
 from gnt.projection import Projector
@@ -138,6 +139,7 @@ def train(args):
 
     # Create criterion
     criterion = SemanticCriterion(args)
+    render_loss = RenderLoss()
     scalars_to_log = {}
 
     global_step = model.start_step + 1
@@ -185,21 +187,17 @@ def train(args):
 
             # compute loss
             model.optimizer.zero_grad()
-            coarse_rgb_loss, coarse_label_loss, scalars_to_log = criterion(ret["outputs_coarse"], ray_batch, scalars_to_log)
-            loss = args.render_loss_scale * coarse_rgb_loss# + args.semantic_loss_scale * coarse_label_loss
-            if ret["outputs_fine"] is not None:
-                fine_rgb_loss, fine_label_loss, scalars_to_log = criterion(
-                    ret["outputs_fine"], ray_batch, scalars_to_log
-                )
-                loss += args.render_loss_scale * fine_rgb_loss + args.semantic_loss_scale * fine_label_loss
-
+            coarse_rgb_loss = render_loss(ret, ray_batch)
+            scalars_to_log = {}
+            for k, v in coarse_rgb_loss.items():
+                scalars_to_log[k] = v
+            loss = 0
+            for k, v in scalars_to_log.items():
+                if k.startswith('train'):
+                    loss = loss+torch.mean(v)
             loss.backward()
-            scalars_to_log["loss"] = loss.item()
-            scalars_to_log["coarse_rgb_loss"] = coarse_rgb_loss.item()
-            # scalars_to_log["coarse_label_loss"] = coarse_label_loss.item()
-            if ret["outputs_fine"] is not None:
-                scalars_to_log["fine_rgb_loss"] = coarse_rgb_loss.item()
-                scalars_to_log["fine_label_loss"] = coarse_rgb_loss.item()
+
+
             model.optimizer.step()
             model.scheduler.step()
 

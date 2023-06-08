@@ -74,7 +74,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "low_lr", "--no_load_opt", "--ckpt_path", "./out/low_lr/model_050000.pth"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "moreN_ray", "--no_load_opt", "--ckpt_path", "./out/model_best.pth"]
         },
     ]
 }

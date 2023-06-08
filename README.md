@@ -7,7 +7,8 @@ python3 eval.py --config configs/gnt_full.txt --eval_dataset rffr --eval_scenes 
 export CUDA_VISIBLE_DEVICES=5
 python3 eval.py --config configs/gnt_ft_rffr.txt --eval_dataset rffr --eval_scenes art1 --expname gen_ft_rffr --chunk_size 500 --run_val --N_rand 1024 --N_samples 192 --ckpt_path ./out/gnt_full/model_720000.pth
 
-
+# 直接利用Generalized NeRF的预训练权重在LIIF上进行finetune
+CUDA_VISIBLE_DEVICES=5 python3 eval.py --config configs/gnt_full.txt  --eval_scenes room --expname gnt_room --run_val --N_rand 1024 --N_samples 192 --ckpt_path ./out/model_best.pth
 
 python3 render.py --config configs/gnt_full.txt --eval_scenes orchids --expname gnt_full --chunk_size 500 --run_val --N_samples 192
 
