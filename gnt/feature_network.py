@@ -297,9 +297,9 @@ class ResUNet(nn.Module):
         return x
 
     def forward(self, x):
-        x = self.relu(self.bn1(self.conv1(x)))
+        x0 = self.relu(self.bn1(self.conv1(x)))
 
-        x1 = self.layer1(x)
+        x1 = self.layer1(x0)
         x2 = self.layer2(x1)
         x3 = self.layer3(x2)
 
@@ -318,7 +318,5 @@ class ResUNet(nn.Module):
         else:
             x_coarse = x_out[:, : self.coarse_out_ch, :]
             x_fine = x_out[:, -self.fine_out_ch :, :]
-        
-        deep_sem = F.interpolate(x3, x_coarse.shape[-2:])  # 上采样到和rgb feat一样的维度
 
-        return x_coarse, x_fine, deep_sem
+        return x_coarse, x_fine, [x0, x1, x2, x3]

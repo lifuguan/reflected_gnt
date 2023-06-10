@@ -82,11 +82,8 @@ def eval(args):
             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
+            gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
 
-            if args.semantic_output is True:
-                gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
-            else:
-                gt_labels = None
             psnr_curr_img, lpips_curr_img, ssim_curr_img = log_view(
                 indx,
                 args,
@@ -132,9 +129,8 @@ def log_view(
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
         if model.feature_net is not None:
-            outs = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-            deep_semantics = outs[2]     # encoder的语义输出
-            featmaps = outs[:-1]
+            featmaps, _, deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            deep_semantics = model.feature_fpn(deep_semantics)
         else:
             featmaps = [None, None]
         ret = render_single_image(
@@ -200,7 +196,7 @@ def log_view(
         if ret["outputs_fine"] is not None
         else ret["outputs_coarse"]["rgb"]
     )
-    if args.semantic_output is True:
+    if args.semantic_model is not None:
         pred_labels = (
             ret["outputs_fine"]["sems"]
             if ret["outputs_fine"] is not None else ret["outputs_coarse"]["sems"]

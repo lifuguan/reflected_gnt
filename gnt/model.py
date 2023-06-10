@@ -2,6 +2,8 @@ import torch
 import os
 from gnt.transformer_network import GNT
 from gnt.feature_network import ResUNet
+from gnt.fpn import FPN
+from gnt.semantic_branch import NeRFSemSegFPNHead
 
 
 def de_parallel(model):
@@ -44,9 +46,15 @@ class GNTModel(object):
             single_net=self.args.single_net,
         ).to(device)
 
+        self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
+        self.sem_seg_head = NeRFSemSegFPNHead().to(device)
+
         # optimizer and learning rate scheduler
         learnable_params = list(self.net_coarse.parameters())
         learnable_params += list(self.feature_net.parameters())
+        learnable_params += list(self.feature_fpn.parameters())
+        learnable_params += list(self.sem_seg_head.parameters())
+
         if self.net_fine is not None:
             learnable_params += list(self.net_fine.parameters())
 
@@ -56,6 +64,8 @@ class GNTModel(object):
                     {"params": self.net_coarse.parameters()},
                     {"params": self.net_fine.parameters()},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
+                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_feature},
+                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_feature},
                 ],
                 lr=args.lrate_gnt,
             )
@@ -64,6 +74,8 @@ class GNTModel(object):
                 [
                     {"params": self.net_coarse.parameters()},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
+                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_feature},
+                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_feature},
                 ],
                 lr=args.lrate_gnt,
             )
@@ -86,6 +98,14 @@ class GNTModel(object):
                 self.feature_net, device_ids=[args.local_rank], output_device=args.local_rank
             )
 
+            self.feature_fpn = torch.nn.parallel.DistributedDataParallel(
+                self.feature_fpn, device_ids=[args.local_rank], output_device=args.local_rank
+            )
+
+            self.sem_seg_head = torch.nn.parallel.DistributedDataParallel(
+                self.sem_seg_head, device_ids=[args.local_rank], output_device=args.local_rank
+            )
+
             if self.net_fine is not None:
                 self.net_fine = torch.nn.parallel.DistributedDataParallel(
                     self.net_fine, device_ids=[args.local_rank], output_device=args.local_rank
@@ -94,12 +114,16 @@ class GNTModel(object):
     def switch_to_eval(self):
         self.net_coarse.eval()
         self.feature_net.eval()
+        self.feature_fpn.eval()
+        self.sem_seg_head.eval()
         if self.net_fine is not None:
             self.net_fine.eval()
 
     def switch_to_train(self):
         self.net_coarse.train()
         self.feature_net.train()
+        self.feature_fpn.train()
+        self.sem_seg_head.train()
         if self.net_fine is not None:
             self.net_fine.train()
 
@@ -109,6 +133,8 @@ class GNTModel(object):
             "scheduler": self.scheduler.state_dict(),
             "net_coarse": de_parallel(self.net_coarse).state_dict(),
             "feature_net": de_parallel(self.feature_net).state_dict(),
+            "feature_fpn": de_parallel(self.feature_fpn).state_dict(),
+            "sem_seg_head": de_parallel(self.sem_seg_head).state_dict(),
         }
 
         if self.net_fine is not None:
@@ -130,6 +156,8 @@ class GNTModel(object):
 
         self.net_coarse.load_state_dict(to_load["net_coarse"], strict=False)
         self.feature_net.load_state_dict(to_load["feature_net"], strict=False)
+        # self.feature_fpn.load_state_dict(to_load["feature_fpn"], strict=False)
+        # self.sem_seg_head.load_state_dict(to_load["sem_seg_head"], strict=False)
 
         if self.net_fine is not None and "net_fine" in to_load.keys():
             self.net_fine.load_state_dict(to_load["net_fine"], strict=False)

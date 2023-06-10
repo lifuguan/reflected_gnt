@@ -87,7 +87,7 @@ class Attention2D(nn.Module):
         x = ((v + pos) * attn).sum(dim=2)
         x = self.dp(self.out_fc(x))
         if ret_attn is True:   # 保留积分权重不变，直接乘上深层语义特征
-            view_deep_semantic = (deep_semantics * attn.repeat_interleave(4, dim=-1)).sum(dim=2)
+            view_deep_semantic = (deep_semantics * attn.repeat_interleave(8, dim=-1)).sum(dim=2) # 这个地方的16需要改进
             return x, view_deep_semantic
         else:
             return x
@@ -105,7 +105,7 @@ class Transformer2D(nn.Module):
 
     def forward(self, q, k, deep_semantics, pos, mask=None, ret_attn=False):
         residue = q
-        x = self.attn_norm(q)
+        x = self.attn_norm(q)  # x: query feature;   k: key feature
         x = self.attn(x, k, deep_semantics, pos, mask, ret_attn=ret_attn)
         if ret_attn is True:
             x, view_sem_out = x
@@ -267,8 +267,8 @@ class GNT(nn.Module):
         self.norm = nn.LayerNorm(args.netwidth)
         self.rgb_fc = nn.Linear(args.netwidth, 3)
 
-        self.semantic_output = args.semantic_output
-        if self.semantic_output is True:
+        self.semantic_model = args.semantic_model
+        if self.semantic_model == 'fc':
             self.semantic_fc = nn.Linear(args.netwidth, args.num_classes + 1)
 
         self.relu = nn.ReLU()
@@ -334,10 +334,11 @@ class GNT(nn.Module):
         # normalize & rgb
         h = self.norm(q)
         outputs = self.rgb_fc(h.mean(dim=1))
-        if self.semantic_output is True:
+        if self.semantic_model == 'fc':
             sem_outputs = self.semantic_fc(h.mean(dim=1))
         else:
             sem_outputs = None
+            
         if self.ret_alpha and self.save_feature is False:
             return torch.cat([outputs, attn], dim=1), None, sem_outputs
         elif self.ret_alpha and self.save_feature:

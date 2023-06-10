@@ -5,12 +5,15 @@ import cv2
 import torch
 from torch.utils.data import Dataset
 import glob
+from PIL import Image
+import pandas as pd
 import sys
 
 sys.path.append("../")
 from .data_utils import rectify_inplane_rotation, get_nearest_pose_ids
 from .utils.base_utils import downsample_gaussian_blur
 from .asset import *
+from .semantic_utils import PointSegClassMapping
 
 
 # only for training
@@ -29,17 +32,13 @@ class RendererDataset(Dataset):
         self.ratio = image_size / 1296
         self.h, self.w = int(self.ratio*972), int(image_size)
 
-        all_rgb_files = []
-        all_pose_files = []
-        all_intrinsics_files = []
+        all_rgb_files, all_pose_files, all_label_files, all_intrinsics_files = [],[],[],[]
         for i, scene_path in enumerate(self.scene_path_list):
             scene_path = os.path.join(args.rootdir + 'data', scene_path[:-10])
             pose_files = []
             for f in sorted(os.listdir(os.path.join(scene_path, "pose"))):
                 path = os.path.join(scene_path, "pose", f)
                 pose = np.loadtxt(path)
-                # pose = self.pose_inverse(np.loadtxt(path).reshape(4, 4)[:3, :])
-                
                 if np.isinf(pose).any() or np.isnan(pose).any():
                     continue
                 else:
@@ -49,15 +48,32 @@ class RendererDataset(Dataset):
             intrinsics_files = [
                 os.path.join(scene_path, 'intrinsic/intrinsic_color.txt') for f in rgb_files
             ]
+            label_files = [f.replace("pose", "label-filt").replace("txt", "png") for f in pose_files]
 
             all_rgb_files.append(rgb_files)
+            all_label_files.append(label_files)
             all_pose_files.append(pose_files)
             all_intrinsics_files.append(intrinsics_files)
 
         index = np.arange(len(all_rgb_files))
         self.all_rgb_files = np.array(all_rgb_files)[index]
+        self.all_label_files = np.array(all_label_files)[index]
         self.all_pose_files = np.array(all_pose_files)[index]
         self.all_intrinsics_files = np.array(all_intrinsics_files)[index]
+
+        mapping_file = 'data/scannet/scannetv2-labels.combined.tsv'
+        mapping_file = pd.read_csv(mapping_file, sep='\t', header=0)
+        scan_ids = mapping_file['id'].values
+        nyu40_ids = mapping_file['nyu40id'].values
+        scan2nyu = np.zeros(max(scan_ids) + 1, dtype=np.int32)
+        for i in range(len(scan_ids)):
+            scan2nyu[scan_ids[i]] = nyu40_ids[i]
+        self.scan2nyu = scan2nyu
+        self.label_mapping = PointSegClassMapping(
+            valid_cat_ids=[1, 2, 3, 4, 5, 6, 7, 8, 9, 10,
+                           11, 12, 14, 16, 24, 28, 33, 34, 36, 39],
+            max_cat_id=40
+        )
 
     def __len__(self):
         return len(self.all_rgb_files)
@@ -72,6 +88,7 @@ class RendererDataset(Dataset):
     def __getitem__(self, idx):
         rgb_files = self.all_rgb_files[idx]
         pose_files = self.all_pose_files[idx]
+        label_files = self.all_label_files[idx]
         intrinsics_files = self.all_intrinsics_files[idx]
 
         id_render = np.random.choice(np.arange(len(pose_files)))
@@ -109,6 +126,14 @@ class RendererDataset(Dataset):
         camera = np.concatenate((list(img_size), intrinsics.flatten(), render_pose.flatten())).astype(
             np.float32
         )
+
+        img = Image.open(label_files[id_render])
+        label = np.asarray(img, dtype=np.int32)
+        label = np.ascontiguousarray(label)
+        label = cv2.resize(label, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+        label = label.astype(np.int32)
+        label = self.scan2nyu[label]
+        label = self.label_mapping(label)
 
         all_poses = [render_pose]
         # get depth range
@@ -148,6 +173,7 @@ class RendererDataset(Dataset):
 
         return {
             "rgb": torch.from_numpy(rgb),
+            "labels": torch.from_numpy(label),
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[id_render],
             "src_rgbs": torch.from_numpy(src_rgbs),

@@ -92,13 +92,14 @@ def render_single_image(
             continue
         elif k == "feats" and all_ret["outputs_coarse"][k] is not None:
             feat_tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
-                (feat_strided.shape[0], feat_strided.shape[1], 256, -1)   # 256是深层语义的维度
+                (feat_strided.shape[0], feat_strided.shape[1], 512, -1)   # 256是深层语义的维度
             )
-            all_ret["outputs_coarse"][k] = feat_tmp.squeeze()            
-        tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
-            (rgb_strided.shape[0], rgb_strided.shape[1], -1)
-        )
-        all_ret["outputs_coarse"][k] = tmp.squeeze()
+            all_ret["outputs_coarse"][k] = feat_tmp.squeeze()      
+        else:      
+            tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
+                (rgb_strided.shape[0], rgb_strided.shape[1], -1)
+            )
+            all_ret["outputs_coarse"][k] = tmp.squeeze()
 
     # TODO: if invalid: replace with white
     # all_ret["outputs_coarse"]["rgb"][all_ret["outputs_coarse"]["mask"] == 0] = 1.0
@@ -108,13 +109,13 @@ def render_single_image(
                 continue
             elif k == "feats" and all_ret["outputs_fine"][k] is not None:
                 feat_tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
-                    (feat_strided.shape[0], feat_strided.shape[1], 256, -1)   # 256是深层语义的维度
+                    (feat_strided.shape[0], feat_strided.shape[1], 512, -1)   # 256是深层语义的维度
                 )
                 all_ret["outputs_fine"][k] = feat_tmp.squeeze() 
-            tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
-                (rgb_strided.shape[0], rgb_strided.shape[1], -1)
-            )
-
-            all_ret["outputs_fine"][k] = tmp.squeeze()
+            else:
+                tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
+                    (rgb_strided.shape[0], rgb_strided.shape[1], -1)
+                )
+                all_ret["outputs_fine"][k] = tmp.squeeze()
 
     return all_ret

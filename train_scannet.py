@@ -165,14 +165,14 @@ def train(args):
                 center_ratio=args.center_ratio,
             )
 
-            outs = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-            deep_semantics = outs[2]     # encoder的语义输出
-            featmaps = outs[:-1]
+            coarse_feats, fine_feats, deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            deep_semantics = model.feature_fpn(deep_semantics)
+
             ret = render_rays(
                 ray_batch=ray_batch,
                 model=model,
                 projector=projector,
-                featmaps=featmaps,
+                featmaps=coarse_feats,
                 deep_semantics=deep_semantics, # encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
@@ -187,16 +187,21 @@ def train(args):
 
             # compute loss
             model.optimizer.zero_grad()
-            coarse_rgb_loss = render_loss(ret, ray_batch)
-            scalars_to_log = {}
-            for k, v in coarse_rgb_loss.items():
-                scalars_to_log[k] = v
-            loss = 0
-            for k, v in scalars_to_log.items():
-                if k.startswith('train'):
-                    loss = loss+torch.mean(v)
-            loss.backward()
+            coarse_rgb_loss, coarse_label_loss, scalars_to_log = criterion(ret["outputs_coarse"], ray_batch, scalars_to_log)
+            loss = args.render_loss_scale * coarse_rgb_loss# + args.semantic_loss_scale * coarse_label_loss
+            if ret["outputs_fine"] is not None:
+                fine_rgb_loss, fine_label_loss, scalars_to_log = criterion(
+                    ret["outputs_fine"], ray_batch, scalars_to_log
+                )
+                loss += args.render_loss_scale * fine_rgb_loss# + args.semantic_loss_scale * fine_label_loss
 
+            loss.backward()
+            scalars_to_log["loss"] = loss.item()
+            scalars_to_log["coarse_rgb_loss"] = coarse_rgb_loss.item()
+            scalars_to_log["coarse_label_loss"] = coarse_label_loss.item()
+            if ret["outputs_fine"] is not None:
+                scalars_to_log["fine_rgb_loss"] = coarse_rgb_loss.item()
+                scalars_to_log["fine_label_loss"] = coarse_label_loss.item()
 
             model.optimizer.step()
             model.scheduler.step()
@@ -212,7 +217,7 @@ def train(args):
                     mse_error = img2mse(ret["outputs_coarse"]["rgb"], ray_batch["rgb"]).item()
                     scalars_to_log["train/coarse-loss"] = mse_error
                     scalars_to_log["train/coarse-psnr-training-batch"] = mse2psnr(mse_error)
-                    if args.semantic_output is True:
+                    if args.semantic_model is not None:
                         iou_metric = criterion.compute_label_loss(ret["outputs_coarse"]["sems"], \
                                                     ray_batch["labels"])
                         scalars_to_log["train/coarse-iou-training-batch"] = iou_metric.item()
@@ -221,7 +226,7 @@ def train(args):
                         mse_error = img2mse(ret["outputs_fine"]["rgb"], ray_batch["rgb"]).item()
                         scalars_to_log["train/fine-loss"] = mse_error
                         scalars_to_log["train/fine-psnr-training-batch"] = mse2psnr(mse_error)
-                        if args.semantic_output is True:
+                        if args.semantic_model is not None:
                             iou_metric = criterion.compute_label_loss(ret["outputs_fine"]["sems"], \
                                                         ray_batch["labels"])
                             scalars_to_log["train/fine-iou-training-batch"] = iou_metric.item()

@@ -19,11 +19,11 @@ single_net = True
 trans_depth = 8
 
 ### TESTING
-chunk_size = 2048
+chunk_size = 500
 
 ### RENDERING
-N_importance = 32
-N_samples = 64
+N_importance = 16
+N_samples = 48
 inv_uniform = True
 white_bkgd = False
 
@@ -31,3 +31,7 @@ white_bkgd = False
 total_step = 50000
 i_print = 50
 save_interval = 5000
+
+### SEMANTIC SETTING
+save_feature = True
+semantic_model = fc
