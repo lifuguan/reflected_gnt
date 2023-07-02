@@ -1,6 +1,9 @@
 import torch.nn as nn
+import torch
+from pathlib import Path
 from utils import img2mse
-
+from skimage.io import imsave
+from utils import concat_images_list
 
 class Criterion(nn.Module):
     def __init__(self):
@@ -32,8 +35,11 @@ class SemanticCriterion(nn.Module):
         """
         super().__init__()
 
+        self.expname = args.expname
         self.ignore_label = args.ignore_label
         self.num_classes = args.num_classes + 1 # +1 for ignore
+
+        self.color_map = torch.tensor(args.semantic_color_map, dtype=torch.uint8)
 
     def compute_label_loss(self, label_pr, label_gt):
         label_pr = label_pr.reshape(-1, self.num_classes)
@@ -43,14 +49,33 @@ class SemanticCriterion(nn.Module):
         label_gt = label_gt[valid_mask]
         return nn.functional.cross_entropy(label_pr, label_gt, reduction='mean').unsqueeze(0)
 
+    def plot_semantic_results(self, data_pred, data_gt, step):
+        h, w = data_pred['sems'].shape[1:3]
+        self.color_map.to(data_gt['rgb'].device)
+        
+        def get_img(data_src, key, channel):
+            rgbs = data_src[key]  # 1,rn,3
+            rgbs = rgbs.reshape([h, w, channel]).detach()
+            if channel > 1:
+                rgbs = rgbs.argmax(axis=-1, keepdims=True)
+            rgbs = rgbs.squeeze().cpu().numpy()
+            rgbs = self.color_map[rgbs]
+            return rgbs
+        
+        imgs = [get_img(data_gt, 'labels', 1), get_img(data_pred, 'sems', self.num_classes)]
 
-    def forward(self, outputs, ray_batch, scalars_to_log):
-        pred_rgb, pred_label = outputs["rgb"], outputs["sems"]
-        if "mask" in outputs:
-            pred_mask = outputs["mask"].float()
+        model_name = self.expname
+        Path(f'out/vis/{model_name}').mkdir(exist_ok=True, parents=True)
+        imsave(f'out/vis/{model_name}/step-{step}-sem.png', concat_images_list(*imgs))
+        return data_pred
+
+    def forward(self, data_pred, data_gt, scalars_to_log):
+        pred_rgb, pred_label = data_pred["rgb"], data_pred["sems"]
+        if "mask" in data_pred:
+            pred_mask = data_pred["mask"].float()
         else:
             pred_mask = None
-        gt_rgb, gt_label = ray_batch["rgb"], ray_batch["labels"]
+        gt_rgb, gt_label = data_gt["rgb"], data_gt["labels"]
 
         rgb_loss = img2mse(pred_rgb, gt_rgb, pred_mask)
         if pred_label is not None:

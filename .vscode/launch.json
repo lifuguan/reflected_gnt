@@ -65,7 +65,8 @@
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "gnt_semantic","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
+            // "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug"]
         },
         {
             "name": "eval: semantic",
@@ -74,7 +75,16 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "moreN_ray", "--no_load_opt", "--ckpt_path", "./out/gnt_best.pth"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "moreN_ray", "--no_load_opt", "--ckpt_path", "./out/gnt_best_semantic.pth"]
+        },
+        {
+            "name": "train: resunet",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_resunet.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--load", "/home/hao/lihao/Semantic-Ray/out/Order(3 scene)/checkpoint_iter29999.pth"]
         },
     ]
 }

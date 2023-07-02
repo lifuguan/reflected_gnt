@@ -136,6 +136,9 @@ def config_parser():
     parser.add_argument(
         "--lrate_feature", type=float, default=1e-3, help="learning rate for feature extractor"
     )
+    parser.add_argument(
+        "--lrate_semantic", type=float, default=1e-3, help="learning rate for semantic head"
+    )
     parser.add_argument("--lrate_gnt", type=float, default=5e-4, help="learning rate for gnt")
     parser.add_argument(
         "--lrate_decay_factor",
@@ -209,8 +212,8 @@ def config_parser():
     parser.add_argument('--num_classes', type=int, default=20)
     parser.add_argument('--ignore_label', type=int, default=20)
 
-    parser.add_argument('--render_loss_scale', type=float, default=0.75)
-    parser.add_argument('--semantic_loss_scale', type=float, default=0.25)
+    parser.add_argument('--render_loss_scale', type=float, default=0.25)
+    parser.add_argument('--semantic_loss_scale', type=float, default=0.75)
 
     parser.add_argument('--save_feature', type=bool, default=False)
     parser.add_argument('--semantic_model', type=str, default='fc')

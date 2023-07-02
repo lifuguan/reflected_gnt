@@ -299,3 +299,25 @@ def lpips(img1, img2, net="vgg", format="NCHW"):
         return lpips_alex(img1, img2)
     elif net == "vgg":
         return lpips_vgg(img1, img2)
+
+
+def concat_images(img0,img1,vert=False):
+    if not vert:
+        h0,h1=img0.shape[0],img1.shape[0],
+        if h0<h1: img0=cv2.copyMakeBorder(img0,0,h1-h0,0,0,borderType=cv2.BORDER_CONSTANT,value=0)
+        if h1<h0: img1=cv2.copyMakeBorder(img1,0,h0-h1,0,0,borderType=cv2.BORDER_CONSTANT,value=0)
+        img = np.concatenate([img0, img1], axis=1)
+    else:
+        w0,w1=img0.shape[1],img1.shape[1]
+        if w0<w1: img0=cv2.copyMakeBorder(img0,0,0,0,w1-w0,borderType=cv2.BORDER_CONSTANT,value=0)
+        if w1<w0: img1=cv2.copyMakeBorder(img1,0,0,0,w0-w1,borderType=cv2.BORDER_CONSTANT,value=0)
+        img = np.concatenate([img0, img1], axis=0)
+
+    return img
+
+def concat_images_list(*args,vert=False):
+    if len(args)==1: return args[0]
+    img_out=args[0]
+    for img in args[1:]:
+        img_out=concat_images(img_out,img,vert)
+    return img_out

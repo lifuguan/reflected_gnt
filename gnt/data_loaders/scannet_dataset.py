@@ -56,10 +56,10 @@ class RendererDataset(Dataset):
             all_intrinsics_files.append(intrinsics_files)
 
         index = np.arange(len(all_rgb_files))
-        self.all_rgb_files = np.array(all_rgb_files)[index]
-        self.all_label_files = np.array(all_label_files)[index]
-        self.all_pose_files = np.array(all_pose_files)[index]
-        self.all_intrinsics_files = np.array(all_intrinsics_files)[index]
+        self.all_rgb_files = np.array(all_rgb_files, dtype=object)[index]
+        self.all_label_files = np.array(all_label_files, dtype=object)[index]
+        self.all_pose_files = np.array(all_pose_files, dtype=object)[index]
+        self.all_intrinsics_files = np.array(all_intrinsics_files, dtype=object)[index]
 
         mapping_file = 'data/scannet/scannetv2-labels.combined.tsv'
         mapping_file = pd.read_csv(mapping_file, sep='\t', header=0)
@@ -75,8 +75,6 @@ class RendererDataset(Dataset):
             max_cat_id=40
         )
 
-    def __len__(self):
-        return len(self.all_rgb_files)
 
     def pose_inverse(self, pose):
         R = pose[:, :3].T
@@ -84,12 +82,16 @@ class RendererDataset(Dataset):
         inversed_pose = np.concatenate([R, t], -1)
         return np.concatenate([inversed_pose, [[0, 0, 0, 1]]])
         # return inversed_pose
+
+    def __len__(self):
+        return 9999  # 确保不会中断
     
     def __getitem__(self, idx):
-        rgb_files = self.all_rgb_files[idx]
-        pose_files = self.all_pose_files[idx]
-        label_files = self.all_label_files[idx]
-        intrinsics_files = self.all_intrinsics_files[idx]
+        real_idx = idx % len(self.all_rgb_files)
+        rgb_files = self.all_rgb_files[real_idx]
+        pose_files = self.all_pose_files[real_idx]
+        label_files = self.all_label_files[real_idx]
+        intrinsics_files = self.all_intrinsics_files[real_idx]
 
         id_render = np.random.choice(np.arange(len(pose_files)))
         train_poses = np.stack([np.loadtxt(file).reshape(4, 4) for file in pose_files], axis=0)

@@ -184,7 +184,7 @@ class FPN(BaseModule):
             if 'scale_factor' in self.upsample_cfg:
                 # fix runtime error of "+=" inplace operation in PyTorch 1.10
                 laterals[i - 1] = laterals[i - 1] + F.interpolate(
-                    laterals[i], **self.upsample_cfg)
+                    laterals[i], **self.upsample_cfg, recompute_scale_factor=True)
             else:
                 prev_shape = laterals[i - 1].shape[2:]
                 laterals[i - 1] = laterals[i - 1] + F.interpolate(
@@ -219,9 +219,9 @@ class FPN(BaseModule):
                     else:
                         outs.append(self.fpn_convs[i](outs[-1]))
         if self.concat_out is True:
-            outs[0] = F.interpolate(outs[0], outs[0].shape[-2:])  # 上采样到和rgb feat一样的维度
-            outs[2] = F.interpolate(outs[2], outs[0].shape[-2:])  # 上采样到和rgb feat一样的维度
-            outs[3] = F.interpolate(outs[3], outs[0].shape[-2:])  # 上采样到和rgb feat一样的维度
+            outs[1] = F.interpolate(outs[1], outs[0].shape[-2:], mode='bilinear', align_corners=True)  # 上采样到和rgb feat一样的维度
+            outs[2] = F.interpolate(outs[2], outs[0].shape[-2:], mode='bilinear', align_corners=True)  # 上采样到和rgb feat一样的维度
+            outs[3] = F.interpolate(outs[3], outs[0].shape[-2:], mode='bilinear', align_corners=True)  # 上采样到和rgb feat一样的维度
             return torch.cat(outs, dim=1)
         else:
             return tuple(outs)

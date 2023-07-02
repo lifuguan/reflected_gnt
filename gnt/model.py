@@ -1,7 +1,7 @@
 import torch
 import os
 from gnt.transformer_network import GNT
-from gnt.feature_network import ResUNet
+from gnt.feature_network import ResUNet, ResUNetLight
 from gnt.fpn import FPN
 from gnt.semantic_branch import NeRFSemSegFPNHead
 
@@ -45,6 +45,7 @@ class GNTModel(object):
             fine_out_ch=self.args.fine_feat_dim,
             single_net=self.args.single_net,
         ).to(device)
+        # self.feature_net = ResUNetLight(out_dim=20+1).to(device)
 
         self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
         self.sem_seg_head = NeRFSemSegFPNHead().to(device)
@@ -64,8 +65,8 @@ class GNTModel(object):
                     {"params": self.net_coarse.parameters()},
                     {"params": self.net_fine.parameters()},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
-                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_feature},
-                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_feature},
+                    {"params": self.feature_fpn.parameters()},
+                    {"params": self.sem_seg_head.parameters()},
                 ],
                 lr=args.lrate_gnt,
             )
@@ -74,8 +75,8 @@ class GNTModel(object):
                 [
                     {"params": self.net_coarse.parameters()},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
-                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_feature},
-                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_feature},
+                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
+                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
                 ],
                 lr=args.lrate_gnt,
             )
@@ -155,8 +156,10 @@ class GNTModel(object):
             self.scheduler.load_state_dict(to_load["scheduler"])
 
         self.net_coarse.load_state_dict(to_load["net_coarse"], strict=False)
-        self.feature_net.load_state_dict(to_load["feature_net"], strict=False)
-        # self.feature_fpn.load_state_dict(to_load["feature_fpn"], strict=False)
+        if self.feature_net is not None and "feature_net" in to_load.keys():
+            self.feature_net.load_state_dict(to_load["feature_net"], strict=True)
+        if self.feature_fpn is not None and "feature_fpn" in to_load.keys():
+            self.feature_fpn.load_state_dict(to_load["feature_fpn"], strict=False)
         # self.sem_seg_head.load_state_dict(to_load["sem_seg_head"], strict=False)
 
         if self.net_fine is not None and "net_fine" in to_load.keys():

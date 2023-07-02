@@ -10,9 +10,10 @@ dataset_weights = [1]
 eval_dataset = scannet
 
 ### TRAINING
-N_rand = 512
-lrate_feature = 0.001
-lrate_gnt = 0.0005
+N_rand = 450
+lrate_feature = 0.005
+lrate_semantic = 0.005
+lrate_gnt = 0.00001
 lrate_decay_factor = 0.5
 lrate_decay_steps = 50000
 single_net = True
@@ -30,8 +31,8 @@ white_bkgd = False
 ### CONSOLE AND TENSORBOARD
 total_step = 50000
 i_print = 50
-save_interval = 5000
+save_interval = 10000
 
 ### SEMANTIC SETTING
 save_feature = True
-semantic_model = fc
+semantic_model = fpn

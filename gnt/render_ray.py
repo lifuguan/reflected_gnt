@@ -195,7 +195,8 @@ def render_rays(
     ray_batch,
     model,
     featmaps,
-    deep_semantics,
+    ref_deep_semantics,
+    que_deep_semantics,
     projector,
     N_samples,
     inv_uniform=False,
@@ -222,7 +223,7 @@ def render_rays(
     """
 
     ret = {"outputs_coarse": None, "outputs_fine": None}
-    ray_o, ray_d = ray_batch["ray_o"], ray_batch["ray_d"]
+    ray_o, ray_d, selected_inds = ray_batch["ray_o"], ray_batch["ray_d"], ray_batch["selected_inds"]
 
     # pts: [N_rays, N_samples, 3]
     # z_vals: [N_rays, N_samples]
@@ -241,8 +242,8 @@ def render_rays(
         ray_batch["camera"],
         ray_batch["src_rgbs"],
         ray_batch["src_cameras"],
-        featmaps=featmaps[0],
-        deep_semantics=deep_semantics,
+        featmaps=featmaps,
+        deep_semantics=ref_deep_semantics,
     )  # [N_rays, N_samples, N_views, x]
     # TODO: include pixel mask in ray transformer
     pixel_mask = (
@@ -255,10 +256,12 @@ def render_rays(
             rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
             depth_map = torch.sum(weights * z_vals, dim=-1)
         else:
-            weights = None
-            depth_map = None
-        ret["outputs_coarse"] = {"rgb": rgb_out, "weights": weights, \
-                                "depth": depth_map, "feats": feats_out, "sems": sem_out}
+            weights = None; depth_map = None
+
+        if sem_out is None:
+            sem_out = model.sem_seg_head(que_deep_semantics, feats_out, selected_inds)
+        del feats_out # 释放显存
+        ret["outputs_coarse"] = {"rgb": rgb_out, "weights": weights, "depth": depth_map, "sems": sem_out}
     else:
         raw_coarse,_,_ = model.net_coarse(rgb_feat, ray_diff, mask)
         ret["outputs_coarse"] = raw2outputs(raw_coarse, z_vals, pixel_mask,
@@ -277,8 +280,8 @@ def render_rays(
             ray_batch["camera"],
             ray_batch["src_rgbs"],
             ray_batch["src_cameras"],
-            featmaps=featmaps[1],
-            deep_semantics=deep_semantics,
+            featmaps=featmaps,
+            deep_semantics=ref_deep_semantics,
         )
 
         # TODO: Include pixel mask in ray transformer
@@ -291,9 +294,11 @@ def render_rays(
         else:
             out = model.net_fine(rgb_feat_sampled, ray_diff, mask, pts, ray_d)
         rgb_out, feats_out, sem_out = out
+        if sem_out is None:
+            sem_out = model.sem_seg_head(que_deep_semantics, feats_out, selected_inds)
         rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
         depth_map = torch.sum(weights * z_vals, dim=-1)
-        ret["outputs_fine"] = {"rgb": rgb_out, "weights": weights, \
-                               "depth": depth_map, "feats": feats_out, "sems": sem_out}
+        del feats_out, que_deep_semantics # 释放显存
+        ret["outputs_fine"] = {"rgb": rgb_out, "weights": weights, "depth": depth_map, "sems": sem_out}
 
     return ret
