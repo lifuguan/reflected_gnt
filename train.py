@@ -168,7 +168,7 @@ def train(args):
                 model=model,
                 projector=projector,
                 featmaps=featmaps,
-                deep_semantics=deep_semantics, # encoder的语义输出
+                ref_deep_semantics=deep_semantics, # encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
                 N_importance=args.N_importance,

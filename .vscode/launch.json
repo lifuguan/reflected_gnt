@@ -86,5 +86,15 @@
             "justMyCode": false,
             "args": ["--load", "/home/hao/lihao/Semantic-Ray/out/Order(3 scene)/checkpoint_iter29999.pth"]
         },
+        {
+            "name": "train: semantic_model",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_resunet.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--expname", "semantic_model(Random10)"]
+            // "args": ["--expname", "debug"]
+        },
     ]
 }

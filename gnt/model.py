@@ -1,4 +1,5 @@
 import torch
+import torch.nn as nn
 import os
 from gnt.transformer_network import GNT
 from gnt.feature_network import ResUNet, ResUNetLight
@@ -200,3 +201,25 @@ class GNTModel(object):
             step = 0
 
         return step
+
+
+class OnlySemanticModel(nn.Module):
+    def __init__(self, args) -> None:
+        super(OnlySemanticModel, self).__init__()
+        # create feature extraction network
+        self.feature_net = ResUNet(
+            coarse_out_ch=args.coarse_feat_dim,
+            fine_out_ch=args.fine_feat_dim,
+            single_net=args.single_net,
+        )
+        # self.feature_net = ResUNetLight(out_dim=20+1).to(device)
+
+        self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True)
+        self.sem_seg_head = NeRFSemSegFPNHead()
+
+    def forward(self, rgb) -> torch.Tensor:
+        _, _, que_deep_semantics = self.feature_net(rgb)
+        que_deep_semantics = self.feature_fpn(que_deep_semantics)
+        sem_out = self.sem_seg_head(que_deep_semantics, None, None)
+        return sem_out
+

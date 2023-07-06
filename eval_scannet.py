@@ -3,6 +3,7 @@ import numpy as np
 import shutil
 import torch
 import torch.utils.data.distributed
+from torch.nn import functional as F
 
 from torch.utils.data import DataLoader
 
@@ -130,7 +131,9 @@ def log_view(
         ray_batch = ray_sampler.get_all()
         if model.feature_net is not None:
             featmaps, _, deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-            deep_semantics = model.feature_fpn(deep_semantics)
+            sems_out = F.interpolate(featmaps, scale_factor = 4, mode='bilinear', align_corners=True)
+
+            # deep_semantics = model.feature_fpn(deep_semantics)
         else:
             featmaps = [None, None]
         ret = render_single_image(
@@ -193,14 +196,15 @@ def log_view(
     # write scalar
     pred_rgb = (
         ret["outputs_fine"]["rgb"]
-        if ret["outputs_fine"] is not None
-        else ret["outputs_coarse"]["rgb"]
+        if ret["outputs_fine"] is not None else ret["outputs_coarse"]["rgb"]
     )
     if args.semantic_model is not None:
         pred_labels = (
             ret["outputs_fine"]["sems"]
             if ret["outputs_fine"] is not None else ret["outputs_coarse"]["sems"]
         )
+        _ = criterion.plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step)
+
     lpips_curr_img = lpips(pred_rgb, gt_img, format="HWC").item()
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)

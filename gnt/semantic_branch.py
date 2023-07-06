@@ -42,14 +42,11 @@ class NeRFSemSegFPNHead(nn.Module):
         self.predictor = Conv2d(conv_dims, num_classes + 1, kernel_size=1, stride=1, padding=0)
 
     def forward(self, deep_feats, out_feats, select_inds):
-        """
-        """
-
         #######   replace feature map           #######
         ratio = 240 * 320 // (deep_feats.shape[-2] * deep_feats.shape[-1])
-        re_select_inds = torch.tensor([select_ind // ratio for select_ind in select_inds])
-
         deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
+
+        # re_select_inds = torch.tensor([select_ind // ratio for select_ind in select_inds])
         # deep_feats[re_select_inds] = out_feats
 
         ####### constrcut feature pyramids and Decoder  #######

@@ -170,7 +170,7 @@ def train(args):
             ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
 
             _, _, que_deep_semantics = model.feature_net(train_data["rgb"].permute(0, 3, 1, 2).to(device))
-            que_deep_semantics = model.feature_fpn(que_deep_semantics).detach()
+            que_deep_semantics = model.feature_fpn(que_deep_semantics)
             ret = render_rays(
                 ray_batch=ray_batch,
                 model=model,
