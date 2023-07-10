@@ -66,8 +66,8 @@ class GNTModel(object):
                     {"params": self.net_coarse.parameters()},
                     {"params": self.net_fine.parameters()},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
-                    {"params": self.feature_fpn.parameters()},
-                    {"params": self.sem_seg_head.parameters()},
+                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
+                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
                 ],
                 lr=args.lrate_gnt,
             )
@@ -149,22 +149,22 @@ class GNTModel(object):
             to_load = torch.load(filename, map_location="cuda:{}".format(self.args.local_rank))
         else:
             to_load = torch.load(filename)
-        # print(to_load["net_coarse"].keys())
-        # exit()
         if load_opt:
             self.optimizer.load_state_dict(to_load["optimizer"])
         if load_scheduler:
             self.scheduler.load_state_dict(to_load["scheduler"])
 
-        self.net_coarse.load_state_dict(to_load["net_coarse"], strict=False)
+        self.net_coarse.load_state_dict(to_load["net_coarse"], strict=True)
         if self.feature_net is not None and "feature_net" in to_load.keys():
             self.feature_net.load_state_dict(to_load["feature_net"], strict=True)
         if self.feature_fpn is not None and "feature_fpn" in to_load.keys():
-            self.feature_fpn.load_state_dict(to_load["feature_fpn"], strict=False)
-        # self.sem_seg_head.load_state_dict(to_load["sem_seg_head"], strict=False)
+            self.feature_fpn.load_state_dict(to_load["feature_fpn"], strict=True)
+        
+        if self.sem_seg_head is not None and "sem_seg_head" in to_load.keys():
+            self.sem_seg_head.load_state_dict(to_load["sem_seg_head"], strict=True)
 
         if self.net_fine is not None and "net_fine" in to_load.keys():
-            self.net_fine.load_state_dict(to_load["net_fine"], strict=False)
+            self.net_fine.load_state_dict(to_load["net_fine"], strict=True)
 
     def load_from_ckpt(
         self, out_folder, load_opt=True, load_scheduler=True, force_latest_ckpt=False

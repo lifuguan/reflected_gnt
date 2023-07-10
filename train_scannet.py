@@ -122,7 +122,7 @@ def train(args):
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in val_scenes:
-        val_dataset = dataset_dict['scannet'](args, is_train=False)
+        val_dataset = dataset_dict['val_scannet'](args, is_train=False, scenes=name)
         val_loader = DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
         val_set_names.append(name)
@@ -166,18 +166,20 @@ def train(args):
                 center_ratio=args.center_ratio,
             )
 
-            ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            # reference feature extractor
+            ref_coarse_feats, ref_fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
             ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
 
+            # novel view feature extractor
             _, _, que_deep_semantics = model.feature_net(train_data["rgb"].permute(0, 3, 1, 2).to(device))
             que_deep_semantics = model.feature_fpn(que_deep_semantics)
+
             ret = render_rays(
                 ray_batch=ray_batch,
                 model=model,
                 projector=projector,
                 featmaps=ref_coarse_feats,
                 ref_deep_semantics=ref_deep_semantics, # reference encoder的语义输出
-                que_deep_semantics=que_deep_semantics, # queue encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
                 N_importance=args.N_importance,
@@ -189,10 +191,12 @@ def train(args):
                 model_type = args.model
             )
 
-            if args.semantic_model != 'fc':
-                ray_batch['labels'] = train_data['labels'].to(device)
-                ret["outputs_coarse"]["sems"] = ret["outputs_coarse"]["sems"].permute(0,2,3,1)
-                ret["outputs_fine"]["sems"] = ret["outputs_fine"]["sems"].permute(0,2,3,1)
+            selected_inds = ray_batch["selected_inds"]
+            corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds)
+            ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
+            ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
+
+            ray_batch['labels'] = train_data['labels'].to(device)
 
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
@@ -244,25 +248,26 @@ def train(args):
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
 
-                if global_step % args.total_step == 0:
+                if (global_step+1) % args.save_interval == 0:
                     print("Evaluating...")
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
-                        psnr_scores,lpips_scores,ssim_scores = [],[],[]
+                        indx = 0
+                        psnr_scores,lpips_scores,ssim_scores, iou_scores = [],[],[],[]
                         for val_data in val_scene:
-                            tmp_ray_sampler = RaySamplerSingleImage(
-                                val_data, device, render_stride=args.render_stride
-                            )
+                            tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
                             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
                             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
                             gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
-                            psnr_curr_img, lpips_curr_img, ssim_curr_img = log_view(
-                                global_step,
+
+                            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric = log_view(
+                                indx,
                                 args,
                                 model,
                                 tmp_ray_sampler,
                                 projector,
                                 gt_img,
                                 gt_labels,
+                                evaluator=[iou_criterion, semantic_criterion],
                                 render_stride=args.render_stride,
                                 prefix="val/",
                                 out_folder=out_folder,
@@ -272,18 +277,23 @@ def train(args):
                             psnr_scores.append(psnr_curr_img)
                             lpips_scores.append(lpips_curr_img)
                             ssim_scores.append(ssim_curr_img)
+                            iou_scores.append(iou_metric)
                             torch.cuda.empty_cache()
-                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}".format(
+                            indx += 1
+                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
                             val_name, 
                             np.mean(psnr_scores),
                             np.mean(lpips_scores),
-                            np.mean(ssim_scores)))
+                            np.mean(ssim_scores),
+                            np.mean(iou_scores)))
+                        wandb.log({
+                            "val/{}-PSNR".format(val_name): np.mean(psnr_scores), 
+                            "val/{}-IoU".format(val_name): np.mean(iou_scores)})
                  
             global_step += 1
             if global_step > model.start_step + args.n_iters + 1:
                 break
         epoch += 1
-
 
 @torch.no_grad()
 def log_view(
@@ -294,6 +304,7 @@ def log_view(
     projector,
     gt_img,
     gt_labels,
+    evaluator,
     render_stride=1,
     prefix="",
     out_folder="",
@@ -303,12 +314,13 @@ def log_view(
     model.switch_to_eval()
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
-        if model.feature_net is not None:
-            outs = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-            deep_semantics = outs[2]     # encoder的语义输出
-            featmaps = outs[:-1]
-        else:
-            featmaps = [None, None]
+
+        ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+        ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+
+        _, _, que_deep_semantics = model.feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
+        que_deep_semantics = model.feature_fpn(que_deep_semantics)
+        
         ret = render_single_image(
             ray_sampler=ray_sampler,
             ray_batch=ray_batch,
@@ -321,14 +333,19 @@ def log_view(
             N_importance=args.N_importance,
             white_bkgd=args.white_bkgd,
             render_stride=render_stride,
-            deep_semantics=deep_semantics, # encoder的语义输出
-            featmaps=featmaps,
+            featmaps=ref_coarse_feats,
+            deep_semantics=ref_deep_semantics, # encoder的语义输出
             ret_alpha=ret_alpha,
             single_net=single_net,
         )
+        # ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
+        # ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
+
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
-
     if args.render_stride != 1:
         gt_img = gt_img[::render_stride, ::render_stride]
         average_im = average_im[::render_stride, ::render_stride]
@@ -349,7 +366,7 @@ def log_view(
         depth_im = img_HWC2CHW(colorize(depth_pred, cmap_name="jet"))
     else:
         depth_im = None
-
+    
     if ret["outputs_fine"] is not None:
         rgb_fine = img_HWC2CHW(ret["outputs_fine"]["rgb"].detach().cpu())
         rgb_fine_ = torch.zeros(3, h_max, w_max)
@@ -366,26 +383,25 @@ def log_view(
         filename = os.path.join(out_folder, prefix[:-1] + "depth_{:03d}.png".format(global_step))
         imageio.imwrite(filename, depth_im)
 
+    
     # write scalar
     pred_rgb = (
         ret["outputs_fine"]["rgb"]
-        if ret["outputs_fine"] is not None
-        else ret["outputs_coarse"]["rgb"]
+        if ret["outputs_fine"] is not None else ret["outputs_coarse"]["rgb"]
     )
-    pred_labels = (
-        ret["outputs_fine"]["labels"]
-        if ret["outputs_fine"] is not None else ret["outputs_coarse"]["labels"]
-    )
+
     lpips_curr_img = lpips(pred_rgb, gt_img, format="HWC").item()
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
-    psnr_curr_img = SemanticCriterion.compute_label_loss(pred_labels, gt_labels)
+    iou_metric = evaluator[0](ret, ray_batch, global_step)
+    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step)
+
     print(prefix + "psnr_image: ", psnr_curr_img)
     print(prefix + "lpips_image: ", lpips_curr_img)
     print(prefix + "ssim_image: ", ssim_curr_img)
+    print(prefix + "iou: ", iou_metric['miou'].item())
     model.switch_to_train()
-    return psnr_curr_img, lpips_curr_img, ssim_curr_img
-
+    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item()
 
 
 if __name__ == "__main__":

@@ -67,8 +67,8 @@ python -m torch.distributed.launch --nproc_per_node=2 \
        --ckpt_path ./out/gnt_best.pth --expname gnt_semantic --no_load_opt --no_load_scheduler
 
 
-export CUDA_VISIBLE_DEVICES=4,5
-python -m torch.distributed.launch --nproc_per_node=2 \
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        train_scannet.py --config configs/gnt_scannet.txt \
-       --ckpt_path ./out/gnt_best.pth --expname gnt_semantic_lr2 --no_load_opt --no_load_scheduler
+       --ckpt_path ./out/gnt_best.pth --expname gnt_smeantic_full --no_load_opt --no_load_scheduler

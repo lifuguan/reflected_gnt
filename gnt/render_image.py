@@ -50,7 +50,7 @@ def render_single_image(
             chunk,
             model,
             featmaps,
-            deep_semantics,
+            ref_deep_semantics = deep_semantics, # reference encoder的语义输出
             projector=projector,
             N_samples=N_samples,
             inv_uniform=inv_uniform,
@@ -90,7 +90,7 @@ def render_single_image(
     for k in all_ret["outputs_coarse"]:
         if k == "random_sigma":
             continue
-        elif k == "feats" and all_ret["outputs_coarse"][k] is not None:
+        elif k == "feats_out" and all_ret["outputs_coarse"][k] is not None:
             feat_tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
                 (feat_strided.shape[0], feat_strided.shape[1], 512, -1)   # 256是深层语义的维度
             )
@@ -107,7 +107,7 @@ def render_single_image(
         for k in all_ret["outputs_fine"]:
             if k == "random_sigma":
                 continue
-            elif k == "feats" and all_ret["outputs_fine"][k] is not None:
+            elif k == "feats_out" and all_ret["outputs_fine"][k] is not None:
                 feat_tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
                     (feat_strided.shape[0], feat_strided.shape[1], 512, -1)   # 256是深层语义的维度
                 )

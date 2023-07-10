@@ -157,7 +157,7 @@ def evaluate(net, dataloader, device, amp, losses):
 
             for loss in losses:
                 # predict the mask
-                masks_pred,_,_ = net(image.permute(0,3,1,2))
+                masks_pred = net(image.permute(0,3,1,2))
                 masks_pred = F.interpolate(
                     masks_pred, size=(240, 320), mode="bilinear", align_corners=False
                     ).permute(0,2,3,1)
@@ -254,20 +254,20 @@ def train_model(
                 _ = plotter.plot_semantic_results(ray_batch, ray_batch, global_step)
                 val_score = evaluate(semantic_model, val_loader, device, amp, [criterion, evaluator])
                 scheduler.step(val_score['miou'])
+                experiment.log(val_score)
                 experiment.log({
                         'learning rate': optimizer.param_groups[0]['lr'],
                         # 'images': wandb.Image(images.cpu().numpy()),
                         'masks': {
                             'true': wandb.Image(true_masks[0].float().cpu().numpy()),
-                            'pred': wandb.Image(masks_pred[0].argmax(dim=2).float().cpu().numpy()),
-                        }})
+                            'pred': wandb.Image(masks_pred[0].argmax(dim=2).float().cpu().numpy())}})
                 
             if global_step == iters: break
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the ResUNet on images and target masks')
-    parser.add_argument('--iters', type=int, default=30000, help='Number of iters')
+    parser.add_argument('--iters', type=int, default=50000, help='Number of iters')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=1, help='Batch size')
     parser.add_argument('--learning-rate', '-l', metavar='LR', type=float, default=1e-5,
                         help='Learning rate', dest='lr')

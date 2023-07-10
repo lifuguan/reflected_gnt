@@ -5,9 +5,9 @@ render_stride = 2
 distributed = False
 
 ## dataset
-train_dataset = scannet
+train_dataset = train_scannet
 dataset_weights = [1]
-eval_dataset = scannet
+eval_dataset = val_scannet
 
 ### TRAINING
 N_rand = 450

@@ -15,7 +15,7 @@ from .nerf_synthetic_render import *
 from .nmr_dataset import *
 from .rffr import RFFRDataset
 from .rffr_test import RFFRTestDataset
-from .scannet_dataset import RendererDataset
+from .scannet_dataset import ScannetTrainDataset, ScannetValDataset
 
 dataset_dict = {
     "spaces": SpacesFreeDataset,
@@ -33,5 +33,6 @@ dataset_dict = {
     "nmr": NMRDataset,
     # "rffr": RFFRDataset, 
     "rffr": RFFRTestDataset,
-    "scannet": RendererDataset,  # for semanitc segmentation
+    "train_scannet": ScannetTrainDataset,  # for train semanitc segmentation
+    "val_scannet": ScannetValDataset,  # for val semanitc segmentation
 }
