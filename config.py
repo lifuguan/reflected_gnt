@@ -207,7 +207,7 @@ def config_parser():
     parser.add_argument('--aug_pixel_center_sample', type=bool, default=True)
     parser.add_argument('--train_ray_num', type=int, default=2048)
     parser.add_argument('--resolution_type', type=str, default="lr")
-    parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_test_split.txt")
+    parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_val_split.txt")
 
     parser.add_argument('--num_classes', type=int, default=20)
     parser.add_argument('--ignore_label', type=int, default=20)

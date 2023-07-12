@@ -120,6 +120,7 @@ def train(args):
 
     # create validation dataset
     val_set_lists, val_set_names = [], []
+    # val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()[0:3]  # 只测前三个
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in val_scenes:
         val_dataset = dataset_dict['val_scannet'](args, is_train=False, scenes=name)
@@ -243,7 +244,7 @@ def train(args):
 
                 if args.expname != 'debug':
                     wandb.log(scalars_to_log)
-                if global_step % args.save_interval == 0:
+                if (global_step+1) % args.save_interval == 0:
                     print("Saving checkpoints at {} to {}...".format(global_step, out_folder))
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
@@ -338,11 +339,10 @@ def log_view(
             ret_alpha=ret_alpha,
             single_net=single_net,
         )
-        # ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
-        # ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
-
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        
+        selected_inds = ray_batch["selected_inds"]
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds).permute(0,2,3,1)
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
