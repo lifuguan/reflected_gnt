@@ -1,3 +1,5 @@
+import random
+import time
 import os
 import numpy as np
 import imageio
@@ -14,6 +16,16 @@ from .data_utils import rectify_inplane_rotation, get_nearest_pose_ids
 from .utils.base_utils import downsample_gaussian_blur
 from .asset import *
 from .semantic_utils import PointSegClassMapping
+
+def set_seed(index,is_train):
+    if is_train:
+        np.random.seed((index+int(time.time()))%(2**16))
+        random.seed((index+int(time.time()))%(2**16)+1)
+        torch.random.manual_seed((index+int(time.time()))%(2**16)+1)
+    else:
+        np.random.seed(index % (2 ** 16))
+        random.seed(index % (2 ** 16) + 1)
+        torch.random.manual_seed(index % (2 ** 16) + 1)
 
 
 # only for training
@@ -83,6 +95,8 @@ class ScannetTrainDataset(Dataset):
         return 9999  # 确保不会中断
     
     def __getitem__(self, idx):
+        set_seed(idx, is_train=True)
+        
         real_idx = idx % len(self.all_rgb_files)
         rgb_files = self.all_rgb_files[real_idx]
         pose_files = self.all_pose_files[real_idx]
@@ -182,7 +196,7 @@ class ScannetTrainDataset(Dataset):
 # only for validation
 class ScannetValDataset(Dataset):
     def __init__(self, args, is_train, scenes=None, **kwargs):
-
+        self.is_train = is_train
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
 
@@ -226,18 +240,32 @@ class ScannetValDataset(Dataset):
             max_cat_id=40
         )
 
+        que_idxs = np.arange(len(self.rgb_files))
+        self.train_que_idxs = que_idxs[:700:3]
+        self.val_que_idxs = que_idxs[2:700:20]
+        if len(self.val_que_idxs) > 10:
+            self.val_que_idxs = self.val_que_idxs[:10]
+
     def __len__(self):
-        return len(self.rgb_files) // 30  # 确保不会中断
+        if self.is_train is True:
+            return len(self.train_que_idxs)
+        else:  
+            return len(self.val_que_idxs)  
     
     def __getitem__(self, idx):
-        idx = idx * 30
+        set_seed(idx, is_train=self.is_train)
+        if self.is_train is True:
+            que_idx = self.train_que_idxs[idx]
+        else:
+            que_idx = self.val_que_idxs[idx]
+
         rgb_files = self.rgb_files
         pose_files = self.pose_files
         label_files = self.label_files
         intrinsics_files = self.intrinsics_files
 
         train_poses = np.stack([np.loadtxt(file).reshape(4, 4) for file in pose_files], axis=0)
-        render_pose = train_poses[idx]
+        render_pose = train_poses[que_idx]
 
         subsample_factor = np.random.choice(np.arange(1, 6), p=[0.3, 0.25, 0.2, 0.2, 0.05])
 
@@ -245,24 +273,24 @@ class ScannetValDataset(Dataset):
             render_pose,
             train_poses,
             self.num_source_views * subsample_factor,
-            tar_id=idx,
+            tar_id=que_idx,
             angular_dist_method="vector",
         )
         id_feat = np.random.choice(id_feat_pool, self.num_source_views, replace=False)
 
-        if idx in id_feat:
-            assert idx not in id_feat
+        if que_idx in id_feat:
+            assert que_idx not in id_feat
         # occasionally include input image
         if np.random.choice([0, 1], p=[0.995, 0.005]):
-            id_feat[np.random.choice(len(id_feat))] = idx
+            id_feat[np.random.choice(len(id_feat))] = que_idx
 
-        rgb = imageio.imread(rgb_files[idx]).astype(np.float32) / 255.0
+        rgb = imageio.imread(rgb_files[que_idx]).astype(np.float32) / 255.0
 
         if self.w != 1296:
             rgb = cv2.resize(downsample_gaussian_blur(
                 rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
             
-        intrinsics = np.loadtxt(intrinsics_files[idx]).reshape([4, 4])
+        intrinsics = np.loadtxt(intrinsics_files[que_idx]).reshape([4, 4])
         intrinsics[:2, :] *= self.ratio
 
         img_size = rgb.shape[:2]
@@ -270,7 +298,7 @@ class ScannetValDataset(Dataset):
             np.float32
         )
 
-        img = Image.open(label_files[idx])
+        img = Image.open(label_files[que_idx])
         label = np.asarray(img, dtype=np.int32)
         label = np.ascontiguousarray(label)
         label = cv2.resize(label, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
@@ -317,7 +345,7 @@ class ScannetValDataset(Dataset):
             "rgb": torch.from_numpy(rgb),
             "labels": torch.from_numpy(label),
             "camera": torch.from_numpy(camera),
-            "rgb_path": rgb_files[idx],
+            "rgb_path": rgb_files[que_idx],
             "src_rgbs": torch.from_numpy(src_rgbs),
             "src_cameras": torch.from_numpy(src_cameras),
             "depth_range": depth_range,

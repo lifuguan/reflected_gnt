@@ -79,7 +79,7 @@ def eval(args):
     iou_criterion = IoU(args)
     semantic_criterion = SemanticLoss(args)
 
-
+    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores = [],[],[],[]
     for val_scene, val_name in zip(val_set_lists, val_set_names):
         indx = 0
         psnr_scores,lpips_scores,ssim_scores, iou_scores = [],[],[],[]
@@ -110,12 +110,22 @@ def eval(args):
             iou_scores.append(iou_metric)
             torch.cuda.empty_cache()
             indx += 1
-        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}".format(
+        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
             val_name, 
             np.mean(psnr_scores),
             np.mean(lpips_scores),
             np.mean(ssim_scores),
             np.mean(iou_scores)))
+        all_psnr_scores.append(np.mean(psnr_scores))
+        all_lpips_scores.append(np.mean(lpips_scores))
+        all_ssim_scores.append(np.mean(ssim_scores))
+        all_iou_scores.append(np.mean(iou_scores))    
+    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+        np.mean(all_psnr_scores),
+        np.mean(all_lpips_scores),
+        np.mean(all_ssim_scores),
+        np.mean(all_iou_scores)))
+    
 
 
 @torch.no_grad()
@@ -140,10 +150,7 @@ def log_view(
 
         ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
         ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
-
-        _, _, que_deep_semantics = model.feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
-        que_deep_semantics = model.feature_fpn(que_deep_semantics)
-        
+        device = ref_coarse_feats.device
         ret = render_single_image(
             ray_sampler=ray_sampler,
             ray_batch=ray_batch,
@@ -161,11 +168,9 @@ def log_view(
             ret_alpha=ret_alpha,
             single_net=single_net,
         )
-        # ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
-        # ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
 
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
@@ -224,7 +229,7 @@ def log_view(
     print(prefix + "ssim_image: ", ssim_curr_img)
     print(prefix + "iou: ", iou_metric['miou'].item())
     model.switch_to_train()
-    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric
+    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item()
 
 
 

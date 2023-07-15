@@ -12,6 +12,7 @@ import  wandb
 import argparse
 from tqdm import tqdm
 from torch.utils.data import DataLoader
+import warnings
 
 from gnt.data_loaders import dataset_dict
 from gnt.feature_network import ResUNetLight
@@ -22,8 +23,6 @@ import config
 
 from sklearn.metrics import confusion_matrix
 
-
-from gnt.data_loaders.create_training_dataset import create_training_dataset
 from gnt.data_loaders.semantic_dataset import RandomRendererDataset, OrderRendererDataset
 
 
@@ -141,41 +140,52 @@ class IoU(Loss):
 
 
 @torch.inference_mode()
-def evaluate(net, dataloader, device, amp, losses):
+def evaluate(net, val_set_names, val_loader_list, device, amp, losses):
     net.eval()
-    num_val_batches = len(dataloader)
-    eval_results = {}
 
     # iterate over the validation set
     with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
-        for batch in tqdm(dataloader, total=num_val_batches, desc='Validation round', unit='batch', leave=False):
-            image, mask_true = batch['image'], batch['mask']
 
-            # move images and labels to correct device and type
-            image = image.to(device=device, dtype=torch.float32, memory_format=torch.channels_last)
-            mask_true = mask_true.to(device=device, dtype=torch.long)
+        all_eval_results = {}
+        for (val_loader, val_name) in zip(val_loader_list, val_set_names):
+            eval_results = {}
+            num_val_batches = len(val_loader)
+            for batch in tqdm(val_loader, total=num_val_batches, desc=val_name, unit='batch', leave=False):
+                image, mask_true = batch['rgb'], batch['labels']
 
-            for loss in losses:
-                # predict the mask
-                masks_pred = net(image.permute(0,3,1,2))
-                masks_pred = F.interpolate(
-                    masks_pred, size=(240, 320), mode="bilinear", align_corners=False
-                    ).permute(0,2,3,1)
-                loss_results=loss({"pixel_label_nr":masks_pred, "pixel_label_gt":mask_true}, None, None)
-                for k,v in loss_results.items():
-                    if type(v)==torch.Tensor:
-                        v=v.detach().cpu().numpy()
+                # move images and labels to correct device and type
+                image = image.to(device=device, dtype=torch.float32, memory_format=torch.channels_last)
+                mask_true = mask_true.to(device=device, dtype=torch.long)
 
-                    if k in eval_results:
-                        eval_results[k].append(v)
-                    else:
-                        eval_results[k]=[v]
-    for k,v in eval_results.items():
+                for loss in losses:
+                    # predict the mask
+                    masks_pred = net(image.permute(0,3,1,2))
+                    masks_pred = F.interpolate(
+                        masks_pred, size=(240, 320), mode="bilinear", align_corners=False
+                        ).permute(0,2,3,1)
+                    with warnings.catch_warnings():
+                        warnings.simplefilter("ignore")
+                        loss_results=loss({"pixel_label_nr":masks_pred, "pixel_label_gt":mask_true}, None, None)
+                    for k,v in loss_results.items():
+                        if type(v)==torch.Tensor:
+                            v=v.detach().cpu().numpy()
+
+                        if k in eval_results:
+                            eval_results[k].append(v.item())
+                        else:
+                            eval_results[k]=[v.item()]
+            for k in eval_results:
+                if k in all_eval_results:
+                    all_eval_results[k].append(np.mean(eval_results[k]))
+                else:
+                    all_eval_results[k] = [np.mean(eval_results[k])]
+
+    for k,v in all_eval_results.items():
         if np.isscalar(v):
             v = np.expand_dims(v, axis=0)
-        eval_results[k]=np.mean(np.concatenate(v,axis=0))
+        all_eval_results[k]=np.mean(v)
     net.train()
-    return eval_results
+    return all_eval_results
 
 def train_model(
         load,
@@ -192,13 +202,21 @@ def train_model(
         gradient_clipping: float = 1.0,
         wandb_name='ResUNet',
 ):
-    train_set = RandomRendererDataset(is_train=True)
-    val_set = OrderRendererDataset(is_train=False)
+    # train_set = RandomRendererDataset(is_train=True)
+    train_set = OrderRendererDataset(is_train=True)
+    # create validation dataset
+    val_set_lists, val_set_names = [], []
+    val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
+    for name in val_scenes:
+        val_dataset = dataset_dict['val_scannet'](args, is_train=False, scenes=name)
+        val_loader = DataLoader(val_dataset, batch_size=1)
+        val_set_lists.append(val_loader)
+        val_set_names.append(name)
+        print(f'{name} val set len {len(val_loader)}')
 
     # 3. Create data loaders
     loader_args = dict(batch_size=batch_size, num_workers=4, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=False, **loader_args)
-    val_loader = DataLoader(val_set, shuffle=False, drop_last=True, **loader_args)
 
     # semantic_model = ResUNetLight(out_dim=20+1)
     semantic_model = OnlySemanticModel(args)
@@ -245,29 +263,33 @@ def train_model(
 
             global_step += 1
             iters_loss += loss.item()
-            iou_metric=evaluator({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks}, None, None)
+            with warnings.catch_warnings():
+                warnings.simplefilter("ignore")
+                iou_metric=evaluator({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks}, None, None)
             print('loss: {}   miou: {}'.format(loss.item(), iou_metric['miou'].item()))
-            experiment.log({'train loss': loss.item(), 'train/iou':iou_metric['miou'].item()})
+            if args.expname != 'debug':
+                experiment.log({'train loss': loss.item(), 'train/iou':iou_metric['miou'].item()})
 
             ray_batch = {"rgb": images, "sems": masks_pred, "labels": true_masks}
-            if (global_step+1) % 2000 == 0:
+            if (global_step+1) % 10000 == 0:
                 _ = plotter.plot_semantic_results(ray_batch, ray_batch, global_step)
-                val_score = evaluate(semantic_model, val_loader, device, amp, [criterion, evaluator])
+                val_score = evaluate(semantic_model, val_set_names, val_set_lists, device, amp, [evaluator])
                 scheduler.step(val_score['miou'])
-                experiment.log(val_score)
-                experiment.log({
-                        'learning rate': optimizer.param_groups[0]['lr'],
-                        # 'images': wandb.Image(images.cpu().numpy()),
-                        'masks': {
-                            'true': wandb.Image(true_masks[0].float().cpu().numpy()),
-                            'pred': wandb.Image(masks_pred[0].argmax(dim=2).float().cpu().numpy())}})
+                if args.expname != 'debug':
+                    experiment.log(val_score)
+                    experiment.log({
+                            'learning rate': optimizer.param_groups[0]['lr'],
+                            # 'images': wandb.Image(images.cpu().numpy()),
+                            'masks': {
+                                'true': wandb.Image(true_masks[0].float().cpu().numpy()),
+                                'pred': wandb.Image(masks_pred[0].argmax(dim=2).float().cpu().numpy())}})
                 
             if global_step == iters: break
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the ResUNet on images and target masks')
-    parser.add_argument('--iters', type=int, default=50000, help='Number of iters')
+    parser.add_argument('--iters', type=int, default=260000, help='Number of iters')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=1, help='Batch size')
     parser.add_argument('--learning-rate', '-l', metavar='LR', type=float, default=1e-5,
                         help='Learning rate', dest='lr')
@@ -289,6 +311,8 @@ def get_args():
     parser.add_argument(
         "--fine_feat_dim", type=int, default=32, help="2D feature dimension for fine level"
     )
+    parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_test_split.txt")
+
     parser.add_argument(
         "--single_net",
         type=bool,
@@ -323,6 +347,9 @@ if __name__ == '__main__':
         [82, 84, 163],    # otherfurn
         [248, 166, 116]  # invalid
     ]
+    args.num_source_views=10
+    args.rectify_inplane_rotation=0.0
+    args.rootdir='./'
     logging.basicConfig(level=logging.INFO, format='%(levelname)s: %(message)s')
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')

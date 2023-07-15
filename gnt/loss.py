@@ -71,7 +71,7 @@ class SemanticLoss(Loss):
 
         model_name = self.expname
         Path(f'out/vis/{model_name}').mkdir(exist_ok=True, parents=True)
-        imsave(f'out/vis/{model_name}/step-{step}-sem.png', concat_images_list(*imgs))
+        # imsave(f'out/vis/{model_name}/step-{step}-sem.png', concat_images_list(*imgs))
         return imgs
     
     def compute_semantic_loss(self, label_pr, label_gt, num_classes):

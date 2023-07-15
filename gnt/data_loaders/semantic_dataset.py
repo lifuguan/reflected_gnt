@@ -2,16 +2,28 @@ import os
 import numpy as np
 import imageio
 import cv2
+import random
+import time
+import pandas as pd
+from PIL import Image
 import torch
 from torch.utils.data import Dataset
 
-import pandas as pd
-from PIL import Image
 from .utils.base_utils import downsample_gaussian_blur
 from .asset import *
 from .semantic_utils import PointSegClassMapping
 
 scannet_set = scannet_train_scans_320
+
+def set_seed(index,is_train):
+    if is_train:
+        np.random.seed((index+int(time.time()))%(2**16))
+        random.seed((index+int(time.time()))%(2**16)+1)
+        torch.random.manual_seed((index+int(time.time()))%(2**16)+1)
+    else:
+        np.random.seed(index % (2 ** 16))
+        random.seed(index % (2 ** 16) + 1)
+        torch.random.manual_seed(index % (2 ** 16) + 1)
 
 class OrderRendererDataset(Dataset):
     def __init__(self, is_train, **kwargs):
@@ -63,6 +75,7 @@ class OrderRendererDataset(Dataset):
         return len(self.all_rgb_files)
     
     def __getitem__(self, idx):
+        set_seed(idx, self.is_train)
         rgb_file = self.all_rgb_files[idx]
         label_file = self.all_label_files[idx]
 

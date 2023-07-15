@@ -120,7 +120,6 @@ def train(args):
 
     # create validation dataset
     val_set_lists, val_set_names = [], []
-    # val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()[0:3]  # 只测前三个
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in val_scenes:
         val_dataset = dataset_dict['val_scannet'](args, is_train=False, scenes=name)
@@ -251,6 +250,7 @@ def train(args):
 
                 if (global_step+1) % args.save_interval == 0:
                     print("Evaluating...")
+                    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores = [],[],[],[]
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
                         indx = 0
                         psnr_scores,lpips_scores,ssim_scores, iou_scores = [],[],[],[]
@@ -287,9 +287,21 @@ def train(args):
                             np.mean(lpips_scores),
                             np.mean(ssim_scores),
                             np.mean(iou_scores)))
+                        all_psnr_scores.append(np.mean(psnr_scores))
+                        all_lpips_scores.append(np.mean(lpips_scores))
+                        all_ssim_scores.append(np.mean(ssim_scores))
+                        all_iou_scores.append(np.mean(iou_scores)) 
                         wandb.log({
-                            "val/{}-PSNR".format(val_name): np.mean(psnr_scores), 
-                            "val/{}-IoU".format(val_name): np.mean(iou_scores)})
+                            "val-PSNR/{}".format(val_name): np.mean(psnr_scores), 
+                            "val-IoU/{}".format(val_name): np.mean(iou_scores)})
+                    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+                        np.mean(all_psnr_scores),
+                        np.mean(all_lpips_scores),
+                        np.mean(all_ssim_scores),
+                        np.mean(all_iou_scores)))
+                    wandb.log({
+                        "val-PSNR/Average": np.mean(all_psnr_scores), 
+                        "val-IoU/Average": np.mean(all_iou_scores)})
                  
             global_step += 1
             if global_step > model.start_step + args.n_iters + 1:
@@ -340,9 +352,8 @@ def log_view(
             single_net=single_net,
         )
         
-        selected_inds = ray_batch["selected_inds"]
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds).permute(0,2,3,1)
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))

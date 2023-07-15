@@ -11,27 +11,27 @@ eval_dataset = val_scannet
 
 ### TRAINING
 N_rand = 450
-lrate_feature = 0.005
-lrate_semantic = 0.005
+lrate_feature = 0.001
+lrate_semantic = 0.001
 lrate_gnt = 0.00001
 lrate_decay_factor = 0.5
-lrate_decay_steps = 40000
+lrate_decay_steps = 50000
 single_net = True
 trans_depth = 8
 
 ### TESTING
-chunk_size = 500
+chunk_size = 2000
 
 ### RENDERING
-N_importance = 16
-N_samples = 48
+N_importance = 1
+N_samples = 64
 inv_uniform = True
 white_bkgd = False
 
 ### CONSOLE AND TENSORBOARD
-total_step = 50000
-i_print = 50
-save_interval = 10000
+total_step = 250000
+i_print = 100
+save_interval = 20000
 
 ### SEMANTIC SETTING
 save_feature = True

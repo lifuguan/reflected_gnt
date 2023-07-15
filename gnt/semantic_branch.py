@@ -43,11 +43,14 @@ class NeRFSemSegFPNHead(nn.Module):
 
     def forward(self, deep_feats, out_feats, select_inds):
         #######   replace feature map           #######
-        ratio = 240 * 320 // (deep_feats.shape[-2] * deep_feats.shape[-1])
-        deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
+        if select_inds is not None:
+            ratio = 240 * 320 // (deep_feats.shape[-2] * deep_feats.shape[-1])
+            deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
 
-        re_select_inds = torch.tensor([select_ind // ratio for select_ind in select_inds])
-        deep_feats[re_select_inds] = out_feats
+            re_select_inds = torch.tensor([select_ind // ratio for select_ind in select_inds])
+            deep_feats[re_select_inds] = out_feats
+        else:
+            deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
 
         ####### constrcut feature pyramids and Decoder  #######
         chunks = torch.chunk(deep_feats, 4, dim=1)
