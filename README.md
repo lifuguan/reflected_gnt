@@ -80,11 +80,11 @@ python -m torch.distributed.launch --nproc_per_node=4 \
        train_scannet.py --config configs/gnt_scannet.txt \
        --ckpt_path ./out/gnt_best.pth --expname gnt_smeantic_train_val1 --val_set_list configs/scannetv2_val_split.txt --no_load_opt --no_load_scheduler
 
-export CUDA_VISIBLE_DEVICES=4,5,6,7
+export CUDA_VISIBLE_DEVICES=0,1,2,3
 python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        train_scannet.py --config configs/gnt_scannet.txt \
-       --ckpt_path ./out/gnt_best.pth --expname semantic_lr1 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+       --ckpt_path ./out/gnt_best.pth --expname semantic_lr2 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 python -m torch.distributed.launch --nproc_per_node=4 \

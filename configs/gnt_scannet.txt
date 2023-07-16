@@ -13,11 +13,14 @@ eval_dataset = val_scannet
 N_rand = 450
 lrate_feature = 0.001
 lrate_semantic = 0.001
-lrate_gnt = 0.00001
-lrate_decay_factor = 0.5
-lrate_decay_steps = 50000
+lrate_gnt = 0.0001
+lrate_decay_factor = 0.2
+lrate_decay_steps = 10000
 single_net = True
 trans_depth = 8
+
+semantic_loss_scale=0.75
+render_loss_scale=0.25
 
 ### TESTING
 chunk_size = 2000
