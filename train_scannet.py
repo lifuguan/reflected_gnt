@@ -191,10 +191,17 @@ def train(args):
                 model_type = args.model
             )
 
-            selected_inds = ray_batch["selected_inds"]
-            corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds)
+            # selected_inds = ray_batch["selected_inds"]
+            # corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'].detach(), selected_inds)    # 34
+            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
+
+            corase_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
+            corase_sem_out = F.softmax(corase_sem_out, dim=1)
             ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
             ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
+            
+            # ref_sem_out = model.sem_seg_head(ref_deep_semantics, None, None)   # 对reference view也进行语义分割训练
+            # ret['reference_sems'] = ref_sem_out.permute(0,2,3,1)
 
             ray_batch['labels'] = train_data['labels'].to(device)
 
@@ -458,6 +465,8 @@ if __name__ == "__main__":
             "N_rand": args.N_rand,
             "semantic_loss_scale": args.semantic_loss_scale,
             "render_loss_scale": args.render_loss_scale,
+            "lrate_semantic": args.lrate_semantic,
+            "lrate_gnt": args.lrate_gnt,
             }
         )
 

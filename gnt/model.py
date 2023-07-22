@@ -63,25 +63,28 @@ class GNTModel(object):
         if self.net_fine is not None:
             self.optimizer = torch.optim.Adam(
                 [
-                    {"params": self.net_coarse.parameters()},
-                    {"params": self.net_fine.parameters()},
+                    {"params": self.net_coarse.parameters(), "lr": args.lrate_gnt},
+                    {"params": self.net_fine.parameters(), "lr": args.lrate_gnt},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
-                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
-                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
+                    {"params": self.feature_fpn.parameters()},
+                    {"params": self.sem_seg_head.parameters()},
                 ],
-                lr=args.lrate_gnt,
+                lr=args.lrate_semantic,
             )
         else:
             self.optimizer = torch.optim.Adam(
                 [
-                    {"params": self.net_coarse.parameters()},
+                    {"params": self.net_coarse.parameters(), "lr": args.lrate_gnt},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
-                    {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
-                    {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
+                    {"params": self.feature_fpn.parameters()},
+                    {"params": self.sem_seg_head.parameters()},
                 ],
-                lr=args.lrate_gnt,
+                lr=args.lrate_semantic,
             )
 
+        # for param in self.net_coarse.parameters():
+        #     param.requires_grad = False
+            
         self.scheduler = torch.optim.lr_scheduler.StepLR(
             self.optimizer, step_size=args.lrate_decay_steps, gamma=args.lrate_decay_factor
         )

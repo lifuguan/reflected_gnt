@@ -97,11 +97,11 @@ class SemanticLoss(Loss):
         
         loss = (coarse_loss + fine_loss) * self.semantic_loss_scale
         
-        # if 'pred_labels' in data_pred:
-        #     ref_labels_pr = data_pred['pred_labels'].permute(0, 2, 3, 1)
-        #     ref_labels_gt = data_gt['ref_imgs_info']['labels'].permute(0, 2, 3, 1)
-        #     ref_loss = self.compute_semantic_loss(ref_labels_pr, ref_labels_gt, num_classes)
-        #     loss += ref_loss * self.semantic_loss_scale
+        if 'reference_sems' in data_pred:
+            ref_labels_pr = data_pred['reference_sems']
+            ref_labels_gt = data_gt['src_labels']
+            ref_loss = self.compute_semantic_loss(ref_labels_pr, ref_labels_gt, num_classes)
+            loss += ref_loss * self.semantic_loss_scale
         return {'train/semantic-loss': loss}
 
 class DepthLoss(nn.Module):

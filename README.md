@@ -80,14 +80,47 @@ python -m torch.distributed.launch --nproc_per_node=4 \
        train_scannet.py --config configs/gnt_scannet.txt \
        --ckpt_path ./out/gnt_best.pth --expname gnt_smeantic_train_val1 --val_set_list configs/scannetv2_val_split.txt --no_load_opt --no_load_scheduler
 
-export CUDA_VISIBLE_DEVICES=0,1,2,3
+export CUDA_VISIBLE_DEVICES=4,5,6,7
 python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
-       train_scannet.py --config configs/gnt_scannet.txt \
-       --ckpt_path ./out/gnt_best.pth --expname semantic_lr2 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+       train_scannet.py --config configs/gnt_scannet_lr3.txt \
+       --ckpt_path ./out/gnt_best.pth --expname org_train --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+
 
 export CUDA_VISIBLE_DEVICES=0,1,2,3
 python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
-       train_scannet.py --config configs/gnt_scannet.txt \
-       --ckpt_path ./out/gnt_best.pth --expname gnt_smeantic_test_test --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+       train_scannet.py --config configs/gnt_scannet_lr3.txt \
+       --ckpt_path ./out/gnt_best.pth --expname lr3 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+
+
+export CUDA_VISIBLE_DEVICES=0,1
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_fuxian.txt \
+       --ckpt_path ./out/gnt_best.pth  --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+
+export CUDA_VISIBLE_DEVICES=2,3
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_fuxian.txt \
+       --ckpt_path ./out/gnt_best.pth --expname only_que --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+
+export CUDA_VISIBLE_DEVICES=4,5
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_scannet_de1.txt \
+       --ckpt_path ./out/gnt_best.pth --expname only_que_de1 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+
+export CUDA_VISIBLE_DEVICES=0,1
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_scannet_de2.txt \
+       --ckpt_path ./out/gnt_best.pth --expname only_que_de2 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+
+
+export CUDA_VISIBLE_DEVICES=2,3
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_scannet_highlr.txt \
+       --ckpt_path ./out/gnt_best.pth --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler

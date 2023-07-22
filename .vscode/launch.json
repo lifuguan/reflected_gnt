@@ -75,7 +75,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/gnt_smeantic_train_val1/model_199999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/lr3/model_099999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
             "name": "train: resunet",
@@ -84,6 +84,7 @@
             "program": "${workspaceFolder}/train_resunet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
+            "args": ["--model", "maskformer", "-b", "64"]
             // "args": ["--load", "/home/hao/lihao/Semantic-Ray/out/Order(3 scene)/checkpoint_iter29999.pth"]
         },
         {

@@ -90,7 +90,7 @@ def create_training_dataset(args):
     print("training dataset: {}".format(args.train_dataset))
     mode = "train"
     if "+" not in args.train_dataset:
-        train_dataset = dataset_dict[args.train_dataset](args, mode, scenes=args.train_scenes)
+        train_dataset = dataset_dict[args.train_dataset](args, mode, scenes=args.train_scenes,train_set=args.train_set)
         train_sampler = (
             torch.utils.data.distributed.DistributedSampler(train_dataset)
             if args.distributed

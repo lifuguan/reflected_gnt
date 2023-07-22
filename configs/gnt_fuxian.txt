@@ -1,0 +1,38 @@
+### INPUT
+expname = fuxian
+rootdir = ./
+render_stride = 2
+distributed = False
+
+## dataset
+train_dataset = train_scannet
+dataset_weights = [1]
+eval_dataset = val_scannet
+
+### TRAINING
+N_rand = 450
+lrate_feature = 0.005
+lrate_semantic = 0.005
+lrate_gnt = 0.00001
+lrate_decay_factor = 0.5
+lrate_decay_steps = 40000
+single_net = True
+trans_depth = 8
+
+### TESTING
+chunk_size = 500
+
+### RENDERING
+N_importance = 16
+N_samples = 48
+inv_uniform = True
+white_bkgd = False
+
+### CONSOLE AND TENSORBOARD
+total_step = 150000
+i_print = 100
+save_interval = 10000
+
+### SEMANTIC SETTING
+save_feature = True
+semantic_model = fpn
