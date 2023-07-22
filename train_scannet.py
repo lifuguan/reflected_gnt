@@ -196,7 +196,7 @@ def train(args):
             del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
 
             corase_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
-            corase_sem_out = F.softmax(corase_sem_out, dim=1)
+            
             ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
             ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
             

@@ -49,7 +49,7 @@ class GNTModel(object):
         # self.feature_net = ResUNetLight(out_dim=20+1).to(device)
 
         self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
-        self.sem_seg_head = NeRFSemSegFPNHead().to(device)
+        self.sem_seg_head = NeRFSemSegFPNHead(args).to(device)
 
         # optimizer and learning rate scheduler
         learnable_params = list(self.net_coarse.parameters())

@@ -10,8 +10,10 @@ from detectron2.layers import Conv2d, ShapeSpec, get_norm
 
 class NeRFSemSegFPNHead(nn.Module):
 
-    def __init__(self, feature_strides=[2,4,8,16], feature_channels=[128,128,128,128], num_classes = 20):
+    def __init__(self, args, feature_strides=[2,4,8,16], feature_channels=[128,128,128,128], num_classes = 20):
         super(NeRFSemSegFPNHead, self).__init__()
+        
+        self.unbounded = args.unbounded # softmax or not
 
         conv_dims = 128
         self.scale_heads = nn.ModuleList()
@@ -66,4 +68,7 @@ class NeRFSemSegFPNHead(nn.Module):
 
         out = self.predictor(x)
         out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)
-        return out 
+        if self.unbounded is True:
+            return F.softmax(out, dim=1)
+        else:
+            return out 

@@ -221,4 +221,5 @@ def config_parser():
     parser.add_argument('--model', type=str, default='gnt')
 
     parser.add_argument('--train_set', type=str, default='code')
+    parser.add_argument('--unbounded', action="store_true")
     return parser
