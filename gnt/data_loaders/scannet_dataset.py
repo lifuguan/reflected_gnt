@@ -256,7 +256,7 @@ class ScannetValDataset(Dataset):
         )
 
         que_idxs = np.arange(len(self.rgb_files))
-        self.train_que_idxs = que_idxs[:700:3]
+        self.train_que_idxs = que_idxs[:700:7]
         self.val_que_idxs = que_idxs[2:700:20]
         if len(self.val_que_idxs) > 10:
             self.val_que_idxs = self.val_que_idxs[:10]

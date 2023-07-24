@@ -65,7 +65,7 @@
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet_unbounded.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
+            "args": ["--config", "configs/gnt_scannet_de2.txt", "--expname", "debug", "--batch_size", "1", "--N_rand", "10"]
         },
         {
             "name": "eval: semantic",
@@ -75,6 +75,15 @@
             "console": "integratedTerminal",
             "justMyCode": false,
             "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/lr3/model_099999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+        },
+        {
+            "name": "finetune: semantic",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/ft_scannet.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_scannet_ft.txt", "--expname", "debug"]
         },
         {
             "name": "train: resunet",

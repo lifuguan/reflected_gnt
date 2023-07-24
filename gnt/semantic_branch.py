@@ -43,6 +43,11 @@ class NeRFSemSegFPNHead(nn.Module):
         
         self.predictor = Conv2d(conv_dims, num_classes + 1, kernel_size=1, stride=1, padding=0)
 
+        if args.unbounded is True:
+            self.softmax = torch.nn.Softmax(dim=1)
+
+
+
     def forward(self, deep_feats, out_feats, select_inds):
         #######   replace feature map           #######
         if select_inds is not None:
@@ -69,6 +74,6 @@ class NeRFSemSegFPNHead(nn.Module):
         out = self.predictor(x)
         out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)
         if self.unbounded is True:
-            return F.softmax(out, dim=1)
+            return self.softmax(out)
         else:
             return out 

@@ -76,7 +76,7 @@ def config_parser():
         "--N_rand",
         type=int,
         default=32 * 16,
-        help="batch size (number of random rays per gradient step)",
+        help="number of random rays per gradient step",
     )
     parser.add_argument(
         "--chunk_size",
@@ -222,4 +222,5 @@ def config_parser():
 
     parser.add_argument('--train_set', type=str, default='code')
     parser.add_argument('--unbounded', action="store_true")
+    parser.add_argument('--batch_size', type=int, default=1, help="batch size of training procedure")
     return parser

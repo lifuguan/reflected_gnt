@@ -1,5 +1,5 @@
 ### INPUT
-expname = gnt_full
+expname = gnt_ft
 rootdir = ./
 render_stride = 2
 distributed = False
@@ -7,20 +7,21 @@ distributed = False
 ### PRETRAIN Model
 no_load_opt
 no_load_scheduler
-ckpt_path = ./out/gnt_best.pth
+ckpt_path = ./out/gnt_ft/general_model.pth
 
-## dataset
+### DATASET
 train_dataset = train_scannet
 dataset_weights = [1]
 eval_dataset = val_scannet
+val_set_list = configs/scannetv2_test_split.txt
 
 ### TRAINING
 N_rand = 450
 lrate_feature = 0.005
 lrate_semantic = 0.005
 lrate_gnt = 0.00001
-lrate_decay_factor = 0.8
-lrate_decay_steps = 40000
+lrate_decay_factor = 0.6
+lrate_decay_steps = 4000
 single_net = True
 trans_depth = 8
 
@@ -37,9 +38,9 @@ inv_uniform = True
 white_bkgd = False
 
 ### CONSOLE AND TENSORBOARD
-total_step = 250000
+total_step = 16000
 i_print = 100
-save_interval = 20000
+save_interval = 2000
 
 ### SEMANTIC SETTING
 save_feature = True
