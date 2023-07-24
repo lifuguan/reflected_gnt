@@ -70,6 +70,7 @@ class GNTModel(object):
                     {"params": self.sem_seg_head.parameters()},
                 ],
                 lr=args.lrate_semantic,
+                weight_decay = args.weight_decay
             )
         else:
             self.optimizer = torch.optim.Adam(
@@ -80,6 +81,7 @@ class GNTModel(object):
                     {"params": self.sem_seg_head.parameters()},
                 ],
                 lr=args.lrate_semantic,
+                weight_decay = args.weight_decay
             )
 
         # for param in self.net_coarse.parameters():

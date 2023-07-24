@@ -134,6 +134,9 @@ def config_parser():
     ########### iterations & learning rate options ##########
     parser.add_argument("--n_iters", type=int, default=250000, help="num of iterations")
     parser.add_argument(
+        "--weight_decay", type=float, default=1e-5, help="weight decay"
+    )
+    parser.add_argument(
         "--lrate_feature", type=float, default=1e-3, help="learning rate for feature extractor"
     )
     parser.add_argument(
