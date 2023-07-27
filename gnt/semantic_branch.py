@@ -72,7 +72,7 @@ class NeRFSemSegFPNHead(nn.Module):
                 x = x + self.scale_heads[i](chunk)
 
         out = self.predictor(x)
-        out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)
+        out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)  # b, c, h, w
         if self.unbounded is True:
             return self.softmax(out)
         else:

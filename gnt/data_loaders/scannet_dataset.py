@@ -95,7 +95,7 @@ class ScannetTrainDataset(Dataset):
         # return inversed_pose
 
     def __len__(self):
-        return 9999  # 确保不会中断
+        return 999999  # 确保不会中断
     
     def __getitem__(self, idx):
         set_seed(idx, is_train=True)
@@ -256,7 +256,7 @@ class ScannetValDataset(Dataset):
         )
 
         que_idxs = np.arange(len(self.rgb_files))
-        self.train_que_idxs = que_idxs[:700:7]
+        self.train_que_idxs = que_idxs[:700:5]
         self.val_que_idxs = que_idxs[2:700:20]
         if len(self.val_que_idxs) > 10:
             self.val_que_idxs = self.val_que_idxs[:10]

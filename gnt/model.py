@@ -220,7 +220,7 @@ class OnlySemanticModel(nn.Module):
         # self.feature_net = ResUNetLight(out_dim=20+1).to(device)
 
         self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True)
-        self.sem_seg_head = NeRFSemSegFPNHead()
+        self.sem_seg_head = NeRFSemSegFPNHead(args)
 
     def forward(self, rgb) -> torch.Tensor:
         _, _, que_deep_semantics = self.feature_net(rgb)

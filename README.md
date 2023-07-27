@@ -122,9 +122,12 @@ python -m torch.distributed.launch --nproc_per_node=2 \
 export CUDA_VISIBLE_DEVICES=2,3
 python -m torch.distributed.launch --nproc_per_node=2 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
-       train_scannet.py --config configs/gnt_scannet_highlr.txt \
-       --ckpt_path ./out/gnt_best.pth --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+       train_scannet.py --config configs/gnt_scannet_de3.txt 
 
+export CUDA_VISIBLE_DEVICES=6,7
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_batch_scannet.py --config configs/gnt_scannet_batch.txt 
 
 export CUDA_VISIBLE_DEVICES=2,3
 python -m torch.distributed.launch --nproc_per_node=2 \
@@ -133,7 +136,7 @@ python -m torch.distributed.launch --nproc_per_node=2 \
        --ckpt_path ./out/gnt_best.pth --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
 
 
-export CUDA_VISIBLE_DEVICES=6,7
+export CUDA_VISIBLE_DEVICES=0,1
 python -m torch.distributed.launch --nproc_per_node=2 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
-       ft_scannet.py --config configs/gnt_scannet_ft.txt --expname finetune_more_train
+       ft_scannet.py --config configs/gnt_scannet_ft.txt --expname gnt_ft2

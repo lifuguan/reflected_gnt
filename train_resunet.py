@@ -373,11 +373,11 @@ def train_model(
                             #     'pred': wandb.Image(masks_pred[0].argmax(dim=2).float().cpu().numpy())}
                                 })
 
-                dir_checkpoint = Path('./out/'+wandb_name)
+                dir_checkpoint = Path('./out/'+args.expname)
                 Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
                 state_dict = semantic_model.state_dict()
                 torch.save(state_dict, str(dir_checkpoint / 'checkpoint_iter{}.pth'.format(global_step)))
-                logging.info(f'Checkpoint {global_step} saved!')
+                print(f'Checkpoint {global_step} saved!')
             
             if global_step == iters: break
 
@@ -415,6 +415,7 @@ def get_args():
         default=True,
         help="use single network for both coarse and/or fine sampling",
     )
+    parser.add_argument('--unbounded', action="store_true")
     return parser.parse_args()
 
 
