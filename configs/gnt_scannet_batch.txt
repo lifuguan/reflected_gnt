@@ -1,0 +1,50 @@
+### INPUT
+expname = gnt_batch2
+rootdir = ./
+render_stride = 2
+distributed = False
+batch_size = 32
+num_workers = 16
+
+### PRETRAIN Model
+no_load_opt
+no_load_scheduler
+ckpt_path = ./out/gnt_best.pth
+
+## dataset
+train_dataset = train_scannet
+dataset_weights = [1]
+eval_dataset = val_scannet
+val_set_list = configs/scannetv2_test_split.txt
+
+### TRAINING
+N_rand = 10
+lrate_feature = 0.005
+lrate_semantic = 0.005
+lrate_gnt = 0.00001
+lrate_decay_factor = 0.8
+lrate_decay_steps = 40000
+weight_decay=0.0
+single_net = True
+trans_depth = 8
+
+semantic_loss_scale=0.75
+render_loss_scale=0.25
+
+### TESTING
+chunk_size = 2000
+
+### RENDERING
+N_importance = 16
+N_samples = 48
+inv_uniform = True
+white_bkgd = False
+
+### CONSOLE AND TENSORBOARD
+total_step = 250000
+i_print = 100
+save_interval = 20000
+
+### SEMANTIC SETTING
+save_feature = True
+semantic_model = fpn

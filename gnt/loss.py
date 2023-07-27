@@ -56,10 +56,12 @@ class SemanticLoss(Loss):
 
     def plot_semantic_results(self, data_pred, data_gt, step):
         h, w = data_pred['sems'].shape[1:3]
+        batch_size = data_pred['sems'].shape[0]
         self.color_map.to(data_gt['rgb'].device)
         
         def get_img(data_src, key, channel):
             rgbs = data_src[key]  # 1,rn,3
+            rgbs = rgbs[0] if batch_size > 1 else rgbs
             rgbs = rgbs.reshape([h, w, channel]).detach()
             if channel > 1:
                 rgbs = rgbs.argmax(axis=-1, keepdims=True)

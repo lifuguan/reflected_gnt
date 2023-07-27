@@ -62,10 +62,10 @@
             "name": "train: semantic",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/train_scannet.py",
+            "program": "${workspaceFolder}/train_batch_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet_de2.txt", "--expname", "debug", "--batch_size", "1", "--N_rand", "10"]
+            "args": ["--config", "configs/gnt_scannet_de2.txt", "--expname", "debug", "--batch_size", "10", "--N_rand", "10"]
         },
         {
             "name": "eval: semantic",
@@ -74,7 +74,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/lr3/model_099999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+            "args": ["--config", "configs/gnt_scannet_de2.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/all_transport.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
             "name": "finetune: semantic",
@@ -92,8 +92,8 @@
             "program": "${workspaceFolder}/train_resunet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--model", "maskformer", "-b", "64"]
-            // "args": ["--load", "/home/hao/lihao/Semantic-Ray/out/Order(3 scene)/checkpoint_iter29999.pth"]
+            "args": ["--model", "semanticfpn", "-b", "64", "--expname", "debug"]
+
         },
         {
             "name": "train: semantic_model",
