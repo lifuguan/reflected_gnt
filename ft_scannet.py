@@ -145,7 +145,7 @@ def train(args):
         model = GNTModel(args, load_opt=not args.no_load_opt, load_scheduler=not args.no_load_scheduler)
 
         epoch, global_step = 0, model.start_step + 1
-        while global_step < model.start_step + args.n_iters + 1:
+        while global_step < model.start_step + args.total_step + 1:
             for train_data in train_loader:
                 time0 = time.time()
 
@@ -299,6 +299,7 @@ def train(args):
         mean = sum(values) / len(values)
         print("Average IoU result: {}".format(mean))
         wandb.log({"Average IoU":mean})
+        
 @torch.no_grad()
 def log_view(
     global_step,
