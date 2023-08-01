@@ -147,7 +147,7 @@ def log_view(
     model.switch_to_eval()
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
-
+        
         ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
         ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
         device = ref_coarse_feats.device
@@ -169,8 +169,14 @@ def log_view(
             single_net=single_net,
         )
 
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        # ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        # ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+
+        # novel view feature extractor
+        _, _, que_deep_semantics = model.feature_net(ray_batch["rgb"].reshape(1,240,320,3).permute(0, 3, 1, 2))
+        que_deep_semantics = model.feature_fpn(que_deep_semantics)
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = ret['outputs_coarse']['sems']
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))

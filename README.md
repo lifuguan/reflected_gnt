@@ -140,3 +140,26 @@ export CUDA_VISIBLE_DEVICES=0,1
 python -m torch.distributed.launch --nproc_per_node=2 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        ft_scannet.py --config configs/gnt_scannet_ft.txt --expname gnt_ft2
+
+
+export CUDA_VISIBLE_DEVICES=6,7
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_scannet_dino.txt --expname gnt_scannet_dino2
+
+export CUDA_VISIBLE_DEVICES=4,5
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_scannet_de2.txt --expname selected_inds --selected_inds
+
+
+export CUDA_VISIBLE_DEVICES=6,7
+python -m torch.distributed.launch --nproc_per_node=2 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_scannet_de2_scale0.5.txt
+
+
+export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
+python -m torch.distributed.launch --nproc_per_node=8 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_scannet.py --config configs/gnt_scannet_de2.txt --expname de2_gpu8

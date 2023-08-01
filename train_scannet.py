@@ -166,13 +166,27 @@ def train(args):
                 center_ratio=args.center_ratio,
             )
 
-            # reference feature extractor
-            ref_coarse_feats, ref_fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+            if args.backbone_pretrain is False:
+                # reference feature extractor
+                ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+                ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
 
-            # novel view feature extractor
-            _, _, que_deep_semantics = model.feature_net(train_data["rgb"].permute(0, 3, 1, 2).to(device))
-            que_deep_semantics = model.feature_fpn(que_deep_semantics)
+                # novel view feature extractor
+                _, _, que_deep_semantics = model.feature_net(train_data["rgb"].permute(0, 3, 1, 2).to(device))
+                que_deep_semantics = model.feature_fpn(que_deep_semantics)
+            else:
+                # reference feature extractor
+                ref_coarse_feats, _, _ = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+                src_images = F.interpolate(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2), 
+                                       scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+                ref_deep_semantics = model.sem_feature_net(src_images)
+                ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+
+                # novel view feature extractor
+                images = F.interpolate(train_data["rgb"].permute(0, 3, 1, 2).to(device), 
+                                       scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+                que_deep_semantics = model.sem_feature_net(images)
+                que_deep_semantics = model.feature_fpn(que_deep_semantics)
 
             ret = render_rays(
                 ray_batch=ray_batch,
@@ -191,19 +205,20 @@ def train(args):
                 model_type = args.model
             )
 
-            # selected_inds = ray_batch["selected_inds"]
-            # corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'].detach(), selected_inds)    # 34
-            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
-
-            corase_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
-            
-            ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
-            ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
+            if args.selected_inds is True:
+                selected_inds = ray_batch["selected_inds"]
+                corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'].detach(), selected_inds).permute(0,2,1)    # 34
+                ret['outputs_coarse']['sems'], ret['outputs_fine']['sems'] = corase_sem_out, corase_sem_out
+            else:
+                corase_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
+                ray_batch['labels'] = train_data['labels'].to(device)
+                ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
+                ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
             
             # ref_sem_out = model.sem_seg_head(ref_deep_semantics, None, None)   # 对reference view也进行语义分割训练
             # ret['reference_sems'] = ref_sem_out.permute(0,2,3,1)
 
-            ray_batch['labels'] = train_data['labels'].to(device)
+            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
 
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
@@ -229,7 +244,8 @@ def train(args):
                     psnr_metric = img2psnr(ret["outputs_coarse"]["rgb"], ray_batch["rgb"]).item()
                     scalars_to_log["train/coarse-psnr"] = psnr_metric
                     if args.semantic_model is not None:
-                        sem_imgs = semantic_criterion.plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step)
+                        if args.selected_inds is  not True:
+                            sem_imgs = semantic_criterion.plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step)
                         iou_metric = iou_criterion(ret, ray_batch, global_step)
                         scalars_to_log["train/iou"] = iou_metric['miou'].item()
 
@@ -241,11 +257,13 @@ def train(args):
 
                     if args.expname != 'debug':
                         wandb.log({
-                        'images': wandb.Image(train_data["rgb"][0].cpu().numpy()),
-                        'masks': {
-                            'true': wandb.Image(sem_imgs[0].float().cpu().numpy()),
-                            'pred': wandb.Image(sem_imgs[1].float().cpu().numpy()),
-                        }})
+                        'images': wandb.Image(train_data["rgb"][0].cpu().numpy())})
+                        if args.selected_inds is not True:
+                            wandb.log({
+                                'masks': {
+                                    'true': wandb.Image(sem_imgs[0].float().cpu().numpy()),
+                                    'pred': wandb.Image(sem_imgs[1].float().cpu().numpy()),
+                            }})
                     del ray_batch
 
                 if args.expname != 'debug':
@@ -335,12 +353,22 @@ def log_view(
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
 
-        ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-        ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
-
-        _, _, que_deep_semantics = model.feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
-        que_deep_semantics = model.feature_fpn(que_deep_semantics)
+        ########       测试直接使用sem seg head来预测   #######
+        # _, _, que_deep_semantics = model.feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
+        # que_deep_semantics = model.feature_fpn(que_deep_semantics)
         
+        if args.backbone_pretrain is False:
+            # reference feature extractor
+            ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+        else:
+            # reference feature extractor
+            ref_coarse_feats, _, _ = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            src_images = F.interpolate(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2), 
+                                       scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+            ref_deep_semantics = model.sem_feature_net(src_images)
+            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+
         ret = render_single_image(
             ray_sampler=ray_sampler,
             ray_batch=ray_batch,

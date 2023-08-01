@@ -2,10 +2,10 @@ import torch
 import torch.nn as nn
 import os
 from gnt.transformer_network import GNT
-from gnt.feature_network import ResUNet, ResUNetLight
+from gnt.feature_network import ResUNet, resnet50
 from gnt.fpn import FPN
 from gnt.semantic_branch import NeRFSemSegFPNHead
-
+import torchvision.models as models
 
 def de_parallel(model):
     return model.module if hasattr(model, "module") else model
@@ -40,15 +40,21 @@ class GNTModel(object):
                 ret_alpha=True,
             ).to(device)
 
-        # create feature extraction network
+        # create ray branch extraction network
         self.feature_net = ResUNet(
             coarse_out_ch=self.args.coarse_feat_dim,
             fine_out_ch=self.args.fine_feat_dim,
             single_net=self.args.single_net,
         ).to(device)
-        # self.feature_net = ResUNetLight(out_dim=20+1).to(device)
 
-        self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
+        # create semantic branch extraction network
+        if args.backbone_pretrain:
+            self.sem_feature_net = resnet50().to(device)
+            self.feature_fpn = FPN(in_channels=[256, 512, 1024, 2048], out_channels=128, concat_out=True).to(device)
+        else:
+            self.sem_feature_net = None
+            self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
+
         self.sem_seg_head = NeRFSemSegFPNHead(args).to(device)
 
         # optimizer and learning rate scheduler
@@ -59,6 +65,10 @@ class GNTModel(object):
 
         if self.net_fine is not None:
             learnable_params += list(self.net_fine.parameters())
+
+        if self.sem_feature_net is not None:
+            learnable_params += list(self.sem_feature_net.parameters())
+
 
         if self.net_fine is not None:
             self.optimizer = torch.optim.Adam(
@@ -73,19 +83,32 @@ class GNTModel(object):
                 weight_decay = args.weight_decay
             )
         else:
-            self.optimizer = torch.optim.Adam(
-                [
-                    {"params": self.net_coarse.parameters(), "lr": args.lrate_gnt},
-                    {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
-                    {"params": self.feature_fpn.parameters()},
-                    {"params": self.sem_seg_head.parameters()},
-                ],
-                lr=args.lrate_semantic,
-                weight_decay = args.weight_decay
-            )
+            if self.sem_feature_net is not None:
+                self.optimizer = torch.optim.Adam(
+                    [
+                        {"params": self.net_coarse.parameters(), "lr": args.lrate_gnt},
+                        {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
+                        {"params": self.sem_feature_net.parameters(), "lr": args.lrate_sem_feature},
+                        {"params": self.feature_fpn.parameters()},
+                        {"params": self.sem_seg_head.parameters()},
+                    ],
+                    lr=args.lrate_semantic,
+                    weight_decay = args.weight_decay
+                )
+            else:
+                self.optimizer = torch.optim.Adam(
+                    [
+                        {"params": self.net_coarse.parameters(), "lr": args.lrate_gnt},
+                        {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
+                        {"params": self.feature_fpn.parameters()},
+                        {"params": self.sem_seg_head.parameters()},
+                    ],
+                    lr=args.lrate_semantic,
+                    weight_decay = args.weight_decay
+                )
 
         # for param in self.net_coarse.parameters():
-        #     param.requires_grad = False
+        #     param.requires_grad = False   
             
         self.scheduler = torch.optim.lr_scheduler.StepLR(
             self.optimizer, step_size=args.lrate_decay_steps, gamma=args.lrate_decay_factor
@@ -118,6 +141,11 @@ class GNTModel(object):
                     self.net_fine, device_ids=[args.local_rank], output_device=args.local_rank
                 )
 
+            if self.sem_feature_net is not None:
+                self.sem_feature_net = torch.nn.parallel.DistributedDataParallel(
+                    self.sem_feature_net, device_ids=[args.local_rank], output_device=args.local_rank
+                )
+
     def switch_to_eval(self):
         self.net_coarse.eval()
         self.feature_net.eval()
@@ -125,6 +153,8 @@ class GNTModel(object):
         self.sem_seg_head.eval()
         if self.net_fine is not None:
             self.net_fine.eval()
+        if self.sem_feature_net is not None:
+            self.sem_feature_net.eval()
 
     def switch_to_train(self):
         self.net_coarse.train()
@@ -133,6 +163,8 @@ class GNTModel(object):
         self.sem_seg_head.train()
         if self.net_fine is not None:
             self.net_fine.train()
+        if self.sem_feature_net is not None:
+            self.sem_feature_net.train()
 
     def save_model(self, filename):
         to_save = {
@@ -146,6 +178,8 @@ class GNTModel(object):
 
         if self.net_fine is not None:
             to_save["net_fine"] = de_parallel(self.net_fine).state_dict()
+        if self.sem_feature_net is not None:
+            to_save["sem_feature_net"] = de_parallel(self.sem_feature_net).state_dict()
 
         torch.save(to_save, filename)
 
@@ -160,8 +194,13 @@ class GNTModel(object):
             self.scheduler.load_state_dict(to_load["scheduler"])
 
         self.net_coarse.load_state_dict(to_load["net_coarse"], strict=True)
+        
         if self.feature_net is not None and "feature_net" in to_load.keys():
             self.feature_net.load_state_dict(to_load["feature_net"], strict=True)
+
+        if self.sem_feature_net is not None and "sem_feature_net" in to_load.keys():
+            self.sem_feature_net.load_state_dict(to_load["sem_feature_net"], strict=True)
+
         if self.feature_fpn is not None and "feature_fpn" in to_load.keys():
             self.feature_fpn.load_state_dict(to_load["feature_fpn"], strict=True)
         
@@ -224,6 +263,24 @@ class OnlySemanticModel(nn.Module):
 
     def forward(self, rgb) -> torch.Tensor:
         _, _, que_deep_semantics = self.feature_net(rgb)
+        que_deep_semantics = self.feature_fpn(que_deep_semantics)
+        sem_out = self.sem_seg_head(que_deep_semantics, None, None)
+        return sem_out
+
+
+class SSLSemModel(nn.Module):
+    def __init__(self, args) -> None:
+        super(SSLSemModel, self).__init__()
+        # create feature extraction network
+        self.feature_net = resnet50()
+
+        # self.feature_net = models.resnet50()
+
+        self.feature_fpn = FPN(in_channels=[256, 512, 1024, 2048], out_channels=128, concat_out=True)
+        self.sem_seg_head = NeRFSemSegFPNHead(args)
+
+    def forward(self, rgb) -> torch.Tensor:
+        que_deep_semantics = self.feature_net(rgb)
         que_deep_semantics = self.feature_fpn(que_deep_semantics)
         sem_out = self.sem_seg_head(que_deep_semantics, None, None)
         return sem_out

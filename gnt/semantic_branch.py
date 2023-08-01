@@ -14,6 +14,7 @@ class NeRFSemSegFPNHead(nn.Module):
         super(NeRFSemSegFPNHead, self).__init__()
         
         self.unbounded = args.unbounded # softmax or not
+        self.selected_inds = args.selected_inds
 
         conv_dims = 128
         self.scale_heads = nn.ModuleList()
@@ -49,6 +50,7 @@ class NeRFSemSegFPNHead(nn.Module):
 
 
     def forward(self, deep_feats, out_feats, select_inds):
+        h, w = deep_feats.shape[-2:]
         #######   replace feature map           #######
         if select_inds is not None:
             batch=1
@@ -64,7 +66,7 @@ class NeRFSemSegFPNHead(nn.Module):
 
         ####### constrcut feature pyramids and Decoder  #######
         for i, chunk in enumerate(chunks):
-            chunk = chunk.reshape(batch, 120, 160, chunk.shape[-1]).permute(0,3,1,2) # batch, 512, h, w
+            chunk = chunk.reshape(batch, h, w, chunk.shape[-1]).permute(0,3,1,2) # batch, 512, h, w
             if i == 0:
                 x = self.scale_heads[i](chunk)
             else:
@@ -72,7 +74,10 @@ class NeRFSemSegFPNHead(nn.Module):
                 x = x + self.scale_heads[i](chunk)
 
         out = self.predictor(x)
-        out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)  # b, c, h, w
+        out = F.interpolate(out, scale_factor = 240 // h, mode='bilinear', align_corners=True)  # b, c, h, w
+
+        if self.selected_inds is True:
+            out = out.reshape(batch, out.shape[1], -1)[:,:,re_select_inds]
         if self.unbounded is True:
             return self.softmax(out)
         else:

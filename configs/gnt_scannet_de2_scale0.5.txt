@@ -1,5 +1,5 @@
 ### INPUT
-expname = gnt_full
+expname = de2_scale
 rootdir = ./
 render_stride = 2
 distributed = False
@@ -27,8 +27,8 @@ trans_depth = 8
 weight_decay = 0
 
 
-semantic_loss_scale=0.75
-render_loss_scale=0.25
+semantic_loss_scale=0.5
+render_loss_scale=0.5
 
 ### TESTING
 chunk_size = 2000
