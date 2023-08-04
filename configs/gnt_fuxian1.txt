@@ -1,5 +1,5 @@
 ### INPUT
-expname = gnt_full
+expname = gnt_fuxian1
 rootdir = ./
 render_stride = 2
 distributed = False
@@ -14,8 +14,8 @@ N_rand = 450
 lrate_feature = 0.005
 lrate_semantic = 0.005
 lrate_gnt = 0.00001
-lrate_decay_factor = 0.6
-lrate_decay_steps = 100000
+lrate_decay_factor = 0.5
+lrate_decay_steps = 50000
 single_net = True
 trans_depth = 8
 

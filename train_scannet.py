@@ -191,8 +191,10 @@ def train(args):
                 model_type = args.model
             )
 
-            selected_inds = ray_batch["selected_inds"]
-            corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds)
+            # selected_inds = ray_batch["selected_inds"]
+            # corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'], selected_inds)
+            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
+            corase_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
             ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
             ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
 
