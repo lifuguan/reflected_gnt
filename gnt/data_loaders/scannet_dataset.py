@@ -92,7 +92,7 @@ class ScannetTrainDataset(Dataset):
         # return inversed_pose
 
     def __len__(self):
-        return 9999  # 确保不会中断
+        return 999999  # 确保不会中断
     
     def __getitem__(self, idx):
         set_seed(idx, is_train=True)
@@ -158,6 +158,7 @@ class ScannetTrainDataset(Dataset):
 
         src_rgbs = []
         src_cameras = []
+        src_labels = []
         for id in id_feat:
             src_rgb = imageio.imread(rgb_files[id]).astype(np.float32) / 255.0
             if self.w != 1296:
@@ -167,8 +168,17 @@ class ScannetTrainDataset(Dataset):
 
             if self.rectify_inplane_rotation:
                 pose, src_rgb = rectify_inplane_rotation(pose.reshape(4, 4), render_pose, src_rgb)
-
             src_rgbs.append(src_rgb)
+
+            img = Image.open(label_files[id])
+            label = np.asarray(img, dtype=np.int32)
+            label = np.ascontiguousarray(label)
+            label = cv2.resize(label, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+            label = label.astype(np.int32)
+            label = self.scan2nyu[label]
+            label = self.label_mapping(label)
+            src_labels.append(label)
+
             intrinsics = np.loadtxt(intrinsics_files[id]).reshape([4, 4])
             intrinsics[:2, :] *= self.ratio
             img_size = src_rgb.shape[:2]
@@ -178,6 +188,7 @@ class ScannetTrainDataset(Dataset):
             src_cameras.append(src_camera)
             all_poses.append(pose)
 
+        src_labels = np.stack(src_labels)
         src_rgbs = np.stack(src_rgbs)
         src_cameras = np.stack(src_cameras)
 
@@ -187,6 +198,7 @@ class ScannetTrainDataset(Dataset):
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[id_render],
             "src_rgbs": torch.from_numpy(src_rgbs),
+            "src_labels": torch.from_numpy(src_labels),
             "src_cameras": torch.from_numpy(src_cameras),
             "depth_range": depth_range,
         }
@@ -241,7 +253,7 @@ class ScannetValDataset(Dataset):
         )
 
         que_idxs = np.arange(len(self.rgb_files))
-        self.train_que_idxs = que_idxs[:700:3]
+        self.train_que_idxs = que_idxs[:700:5]
         self.val_que_idxs = que_idxs[2:700:20]
         if len(self.val_que_idxs) > 10:
             self.val_que_idxs = self.val_que_idxs[:10]

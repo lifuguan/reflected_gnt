@@ -224,7 +224,7 @@ def train(args):
                     psnr_metric = img2psnr(ret["outputs_coarse"]["rgb"], ray_batch["rgb"]).item()
                     scalars_to_log["train/coarse-psnr"] = psnr_metric
                     if args.semantic_model is not None:
-                        sem_imgs = semantic_criterion.plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step)
+                        sem_imgs = semantic_criterion.plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step, None, False)
                         iou_metric = iou_criterion(ret, ray_batch, global_step)
                         scalars_to_log["train/iou"] = iou_metric['miou'].item()
 
@@ -333,8 +333,8 @@ def log_view(
         ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
         ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
 
-        _, _, que_deep_semantics = model.feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
-        que_deep_semantics = model.feature_fpn(que_deep_semantics)
+        # _, _, que_deep_semantics = model.feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
+        # que_deep_semantics = model.feature_fpn(que_deep_semantics)
         
         ret = render_single_image(
             ray_sampler=ray_sampler,

@@ -75,7 +75,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/gnt_smeantic_full/model_179999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--no_load_opt", "--ckpt_path", "/home/hao/lihao/reflected_gnt/out/gnt_smeantic_full2_0805/model_239999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
             "name": "train: resunet",

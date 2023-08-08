@@ -18,7 +18,7 @@ from gnt.projection import Projector
 import imageio
 
 from gnt.loss import SemanticLoss, IoU
-
+import logging
 
 def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
@@ -59,6 +59,12 @@ def eval(args):
         if not os.path.isfile(f):
             shutil.copy(args.config, f)
 
+        logging.basicConfig(format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s',
+                    level=logging.CRITICAL,
+                    filename='test.log',
+                    filemode='a')
+
+
     # create validation dataset
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
@@ -67,6 +73,7 @@ def eval(args):
         val_loader = DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
         val_set_names.append(name)
+        os.makedirs(out_folder + '/' + name.split('/')[1], exist_ok=True)
         print(f'{name} val set len {len(val_loader)}')
 
     # Create GNT model
@@ -103,6 +110,7 @@ def eval(args):
                 out_folder=out_folder,
                 ret_alpha=args.N_importance > 0,
                 single_net=args.single_net,
+                val_name = val_name.split('/')[1]
             )
             psnr_scores.append(psnr_curr_img)
             lpips_scores.append(lpips_curr_img)
@@ -116,11 +124,22 @@ def eval(args):
             np.mean(lpips_scores),
             np.mean(ssim_scores),
             np.mean(iou_scores)))
+        logging.critical("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+            val_name, 
+            np.mean(psnr_scores),
+            np.mean(lpips_scores),
+            np.mean(ssim_scores),
+            np.mean(iou_scores)))
         all_psnr_scores.append(np.mean(psnr_scores))
         all_lpips_scores.append(np.mean(lpips_scores))
         all_ssim_scores.append(np.mean(ssim_scores))
         all_iou_scores.append(np.mean(iou_scores))    
     print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+        np.mean(all_psnr_scores),
+        np.mean(all_lpips_scores),
+        np.mean(all_ssim_scores),
+        np.mean(all_iou_scores)))
+    logging.critical("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
         np.mean(all_psnr_scores),
         np.mean(all_lpips_scores),
         np.mean(all_ssim_scores),
@@ -143,13 +162,20 @@ def log_view(
     out_folder="",
     ret_alpha=False,
     single_net=True,
+    val_name = None
 ):
     model.switch_to_eval()
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
-
-        ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-        ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+        if args.backbone_pretrain is False:
+            ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+        else:
+            ref_coarse_feats, _, _ = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+            src_images = F.interpolate(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2), 
+                                    scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+            ref_deep_semantics = model.sem_feature_net(src_images)
+            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
         device = ref_coarse_feats.device
         ret = render_single_image(
             ray_sampler=ray_sampler,
@@ -170,7 +196,20 @@ def log_view(
         )
 
         ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+
+        # novel view feature extractor
+        # if args.backbone_pretrain is False:
+        #     _, _, que_deep_semantics = model.feature_net(ray_batch["rgb"].reshape(1,240,320,3).permute(0, 3, 1, 2))
+        #     que_deep_semantics = model.feature_fpn(que_deep_semantics)
+        # else:
+        #     images = F.interpolate(ray_batch["rgb"].reshape(1,240,320,3).permute(0, 3, 1, 2).to(device), 
+        #                             scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+        #     que_deep_semantics = model.sem_feature_net(images)
+        #     que_deep_semantics = model.feature_fpn(que_deep_semantics)
+
+        # ret['outputs_coarse']['sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        # ret['outputs_fine']['sems'] = ret['outputs_coarse']['sems']
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
@@ -222,7 +261,7 @@ def log_view(
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
     iou_metric = evaluator[0](ret, ray_batch, global_step)
-    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step)
+    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step, val_name, vis = True)
 
     print(prefix + "psnr_image: ", psnr_curr_img)
     print(prefix + "lpips_image: ", lpips_curr_img)

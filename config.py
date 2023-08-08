@@ -218,6 +218,8 @@ def config_parser():
     parser.add_argument('--save_feature', type=bool, default=False)
     parser.add_argument('--semantic_model', type=str, default='fc')
 
+    parser.add_argument('--backbone_pretrain', type=bool, default=False)
     parser.add_argument('--model', type=str, default='gnt')
+    parser.add_argument('--label_smoothing', action="store_true")
 
     return parser
