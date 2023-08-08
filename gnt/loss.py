@@ -54,12 +54,14 @@ class SemanticLoss(Loss):
         self.color_map = torch.tensor(args.semantic_color_map, dtype=torch.uint8)
         self.expname = args.expname
 
-    def plot_semantic_results(self, data_pred, data_gt, step):
+    def plot_semantic_results(self, data_pred, data_gt, step, val_name=None, vis=False):
         h, w = data_pred['sems'].shape[1:3]
+        batch_size = data_pred['sems'].shape[0]
         self.color_map.to(data_gt['rgb'].device)
         
         def get_img(data_src, key, channel):
             rgbs = data_src[key]  # 1,rn,3
+            rgbs = rgbs[0] if batch_size > 1 else rgbs
             rgbs = rgbs.reshape([h, w, channel]).detach()
             if channel > 1:
                 rgbs = rgbs.argmax(axis=-1, keepdims=True)
@@ -71,7 +73,8 @@ class SemanticLoss(Loss):
 
         model_name = self.expname
         Path(f'out/vis/{model_name}').mkdir(exist_ok=True, parents=True)
-        # imsave(f'out/vis/{model_name}/step-{step}-sem.png', concat_images_list(*imgs))
+        if vis is True:
+            imsave(f'out/{model_name}/{val_name}/{step}.png', concat_images_list(*imgs))
         return imgs
     
     def compute_semantic_loss(self, label_pr, label_gt, num_classes):
