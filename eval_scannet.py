@@ -170,7 +170,7 @@ def log_view(
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
 
-        ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+        ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
         ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
         device = ref_coarse_feats.device
         ret = render_single_image(

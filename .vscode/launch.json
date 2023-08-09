@@ -75,7 +75,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "baseline", "--no_load_opt", "--ckpt_path", "./out/gnt_smeantic_full2_0805/model_239999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "gnt_scannet_full2_0809", "--no_load_opt", "--ckpt_path", "./out/gnt_smeantic_0809_2/model_139999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
             "name": "train: resunet",
