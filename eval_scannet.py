@@ -20,6 +20,7 @@ import imageio
 from gnt.loss import SemanticLoss, IoU
 import logging
 
+
 def worker_init_fn(worker_id):
     np.random.seed(np.random.get_state()[1][0] + worker_id)
 
@@ -61,10 +62,8 @@ def eval(args):
 
         logging.basicConfig(format='%(asctime)s - %(filename)s[line:%(lineno)d] - %(levelname)s: %(message)s',
                     level=logging.CRITICAL,
-                    filename='test.log',
+                    filename=os.path.join(out_folder, "result.log"),
                     filemode='a')
-
-
     # create validation dataset
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
@@ -124,6 +123,10 @@ def eval(args):
             np.mean(lpips_scores),
             np.mean(ssim_scores),
             np.mean(iou_scores)))
+        all_psnr_scores.append(np.mean(psnr_scores))
+        all_lpips_scores.append(np.mean(lpips_scores))
+        all_ssim_scores.append(np.mean(ssim_scores))
+        all_iou_scores.append(np.mean(iou_scores))    
         logging.critical("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
             val_name, 
             np.mean(psnr_scores),
@@ -139,13 +142,7 @@ def eval(args):
         np.mean(all_lpips_scores),
         np.mean(all_ssim_scores),
         np.mean(all_iou_scores)))
-    logging.critical("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
-        np.mean(all_psnr_scores),
-        np.mean(all_lpips_scores),
-        np.mean(all_ssim_scores),
-        np.mean(all_iou_scores)))
     
-
 
 @torch.no_grad()
 def log_view(
@@ -162,20 +159,14 @@ def log_view(
     out_folder="",
     ret_alpha=False,
     single_net=True,
-    val_name = None
+    val_name = None,
 ):
     model.switch_to_eval()
     with torch.no_grad():
         ray_batch = ray_sampler.get_all()
-        if args.backbone_pretrain is False:
-            ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
-        else:
-            ref_coarse_feats, _, _ = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-            src_images = F.interpolate(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2), 
-                                    scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
-            ref_deep_semantics = model.sem_feature_net(src_images)
-            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+
+        ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
+        ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
         device = ref_coarse_feats.device
         ret = render_single_image(
             ray_sampler=ray_sampler,
@@ -261,7 +252,7 @@ def log_view(
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
     iou_metric = evaluator[0](ret, ray_batch, global_step)
-    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step, val_name, vis = True)
+    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step, val_name, vis=True)
 
     print(prefix + "psnr_image: ", psnr_curr_img)
     print(prefix + "lpips_image: ", lpips_curr_img)

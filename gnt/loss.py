@@ -55,7 +55,7 @@ class SemanticLoss(Loss):
         self.expname = args.expname
         self.label_smoothing = args.label_smoothing
 
-    def plot_semantic_results(self, data_pred, data_gt, step, val_name, vis=False):
+    def plot_semantic_results(self, data_pred, data_gt, step, val_name=None, vis=False):
         h, w = data_pred['sems'].shape[1:3]
         batch_size = data_pred['sems'].shape[0]
         self.color_map.to(data_gt['rgb'].device)
