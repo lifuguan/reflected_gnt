@@ -9,7 +9,9 @@ import urllib.request      #(for python3)
 # import urllib
 import tempfile
 
-BASE_URL = 'https://caddy-ct.buct.edu.cn/scannet/'
+# BASE_URL = 'https://caddy-ct.buct.edu.cn/scannet/'
+BASE_URL = 'https://kaldir.vc.in.tum.de/scannet/'
+
 TOS_URL = BASE_URL + 'ScanNet_TOS.pdf'
 FILETYPES = ['.sens', '.txt',
              '_vh_clean.ply', '_vh_clean_2.ply',
@@ -35,9 +37,9 @@ V1_IDX = 1
 
 def get_release_scans(release_file):
     train_val_test = [
-        '/home/hao/lihao/Semantic-Ray/configs/scannetv2_val_split.txt',
-        '/home/hao/lihao/Semantic-Ray/configs/scannetv2_train_split.txt',
-        '/home/hao/lihao/Semantic-Ray/configs/scannetv2_test_split.txt'
+        'configs/scannetv2_val_split.txt',
+        'configs/scannetv2_train_split.txt',
+        'configs/scannetv2_test_split.txt'
     ]
     scans = []
     for file_name in train_val_test:
