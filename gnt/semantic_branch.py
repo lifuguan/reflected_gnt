@@ -50,7 +50,7 @@ class NeRFSemSegFPNHead(nn.Module):
             re_select_inds = torch.tensor([select_ind // ratio for select_ind in select_inds])
             deep_feats[re_select_inds] = out_feats
         else:
-            deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
+            deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0).contiguous()
 
         ####### constrcut feature pyramids and Decoder  #######
         chunks = torch.chunk(deep_feats, 4, dim=1)

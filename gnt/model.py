@@ -138,11 +138,17 @@ class GNTModel(object):
                 self.net_fine = torch.nn.parallel.DistributedDataParallel(
                     self.net_fine, device_ids=[args.local_rank], output_device=args.local_rank
                 )
+                self.net_fine = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net_fine)
 
             if self.sem_feature_net is not None:
                 self.sem_feature_net = torch.nn.parallel.DistributedDataParallel(
                     self.sem_feature_net, device_ids=[args.local_rank], output_device=args.local_rank
                 )
+                self.sem_feature_net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.sem_feature_net)
+
+            self.net_coarse = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net_coarse)
+            self.feature_net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.feature_net)
+            self.feature_fpn = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.feature_fpn)
 
     def switch_to_eval(self):
         self.net_coarse.eval()
