@@ -331,7 +331,12 @@ def log_view(
         ray_batch = ray_sampler.get_all()
 
         ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-        ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+        # ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+        ### add mlp daiyalun
+        if args.use_mlp:
+            ref_deep_semantics = model.feature_fpn(ref_deep_semantics, is_nerf_feature=True)
+        else:
+            ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
 
         _, _, que_deep_semantics = model.feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
         que_deep_semantics = model.feature_fpn(que_deep_semantics)
