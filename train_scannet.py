@@ -169,7 +169,11 @@ def train(args):
             if args.backbone_pretrain is False:
                 # reference feature extractor
                 ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
-                ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+                ### daiyalun 2fc
+                if args.use_mlp is Ture:
+                    ref_deep_semantics = model.feature_fpn(ref_deep_semantics, is_nerf_feature=True)
+                else:
+                    ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
 
                 # novel view feature extractor
                 _, _, que_deep_semantics = model.feature_net(train_data["rgb"].permute(0, 3, 1, 2).to(device))
