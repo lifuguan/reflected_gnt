@@ -101,7 +101,8 @@ class GNTModel(object):
             )
 
             self.feature_fpn = torch.nn.parallel.DistributedDataParallel(
-                self.feature_fpn, device_ids=[args.local_rank], output_device=args.local_rank
+                self.feature_fpn, device_ids=[args.local_rank], output_device=args.local_rank,
+                find_unused_parameters=True
             )
 
             self.sem_seg_head = torch.nn.parallel.DistributedDataParallel(
