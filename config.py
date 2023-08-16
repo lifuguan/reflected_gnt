@@ -220,4 +220,5 @@ def config_parser():
 
     parser.add_argument('--model', type=str, default='gnt')
 
+    parser.add_argument('--use_mlp', type=bool, default=False, help="add mlp before GNT feature enter fpn")
     return parser
