@@ -158,7 +158,12 @@ class FPN(BaseModule):
                     inplace=False)
                 self.fpn_convs.append(extra_fpn_conv)
 
-    def forward(self, inputs: Tuple[Tensor]) -> tuple:
+        ### mlp
+        self.mlp1s = nn.ModuleList([nn.Linear(channel, channel*2) for channel in self.in_channels])
+        self.mlp2s = nn.ModuleList([nn.Linear(channel*2, channel) for channel in self.in_channels])
+        self.relu = nn.ReLU()
+
+    def forward(self, inputs: Tuple[Tensor], is_nerf_feature=False) -> tuple:
         """Forward function.
 
         Args:
@@ -169,6 +174,19 @@ class FPN(BaseModule):
             tuple: Feature maps, each is a 4D-tensor.
         """
         assert len(inputs) == len(self.in_channels)
+
+        ### daiyalun mlp
+        if is_nerf_feature:
+            processed_inputs = []
+            for i, x in enumerate(inputs):
+                b, c, h, w = x.size()
+                x = x.view(b * h * w, c)  # adjust shape to (b*h*w, c)
+                x = self.relu(self.mlp1s[i](x))
+                x = self.relu(self.mlp2s[i](x))
+                x = x.view(b, c, h, w)  # reshape back to original shape
+                processed_inputs.append(x)
+            inputs = tuple(processed_inputs)
+        ###
 
         # build laterals
         laterals = [
