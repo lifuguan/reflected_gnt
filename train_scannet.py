@@ -448,8 +448,8 @@ if __name__ == "__main__":
     if args.rank == 0 and args.expname != 'debug':
         wandb.init(
             # set the wandb project where this run will be logged
-            entity="lifuguan",
-            project="General-NeRF",
+            entity="vio-research",
+            project="Semantic-NeRF",
             name=args.expname,
             
             # track hyperparameters and run metadata
