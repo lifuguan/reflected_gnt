@@ -252,17 +252,17 @@ def train(args):
 
                 if (global_step+1) % args.save_interval == 0:
                     print("Evaluating...")
-                    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores = [],[],[],[]
+                    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores, all_que_iou_scores = [],[],[],[],[]
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
                         indx = 0
-                        psnr_scores,lpips_scores,ssim_scores, iou_scores = [],[],[],[]
+                        psnr_scores,lpips_scores,ssim_scores, iou_scores, que_iou_scores = [],[],[],[],[]
                         for val_data in val_scene:
                             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
                             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
                             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
                             gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
 
-                            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric = log_view(
+                            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric, que_iou_metric = log_view(
                                 indx,
                                 args,
                                 model,
@@ -281,29 +281,35 @@ def train(args):
                             lpips_scores.append(lpips_curr_img)
                             ssim_scores.append(ssim_curr_img)
                             iou_scores.append(iou_metric)
+                            que_iou_scores.append(que_iou_metric)
                             torch.cuda.empty_cache()
                             indx += 1
-                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Query IoU: {}".format(
                             val_name, 
                             np.mean(psnr_scores),
                             np.mean(lpips_scores),
                             np.mean(ssim_scores),
-                            np.mean(iou_scores)))
+                            np.mean(iou_scores),
+                            np.mean(que_iou_scores)))
                         all_psnr_scores.append(np.mean(psnr_scores))
                         all_lpips_scores.append(np.mean(lpips_scores))
                         all_ssim_scores.append(np.mean(ssim_scores))
                         all_iou_scores.append(np.mean(iou_scores)) 
+                        all_que_iou_scores.append(np.mean(que_iou_scores)) 
                         wandb.log({
                             "val-PSNR/{}".format(val_name): np.mean(psnr_scores), 
-                            "val-IoU/{}".format(val_name): np.mean(iou_scores)})
-                    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+                            "val-IoU/{}".format(val_name): np.mean(iou_scores),
+                            "val-Query-IoU/{}".format(val_name): np.mean(que_iou_scores)})
+                    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Query IoU: {}".format(
                         np.mean(all_psnr_scores),
                         np.mean(all_lpips_scores),
                         np.mean(all_ssim_scores),
-                        np.mean(all_iou_scores)))
+                        np.mean(all_iou_scores),
+                        np.mean(all_que_iou_scores)))
                     wandb.log({
                         "val-PSNR/Average": np.mean(all_psnr_scores), 
-                        "val-IoU/Average": np.mean(all_iou_scores)})
+                        "val-IoU/Average": np.mean(all_iou_scores),
+                        "val-Query-IoU/Average": np.mean(all_que_iou_scores)})
                  
             global_step += 1
             if global_step > model.start_step + args.n_iters + 1:
@@ -356,6 +362,9 @@ def log_view(
         
         ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
         ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
+        
+        ret['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
@@ -413,8 +422,10 @@ def log_view(
     print(prefix + "lpips_image: ", lpips_curr_img)
     print(prefix + "ssim_image: ", ssim_curr_img)
     print(prefix + "iou: ", iou_metric['miou'].item())
+    if 'que_miou' in iou_metric.keys():
+        print(prefix + "que_miou: ", iou_metric['que_miou'].item())
     model.switch_to_train()
-    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item()
+    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item(), iou_metric['que_miou'].item()
 
 
 if __name__ == "__main__":

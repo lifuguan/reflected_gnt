@@ -173,21 +173,7 @@ class IoU(Loss):
         self.num_classes = args.num_classes
         self.ignore_label = args.ignore_label
 
-
-    def __call__(self, data_pred, data_gt, step, **kwargs):
-        true_labels = data_gt['labels'].reshape([-1]).long().detach().cpu().numpy()
-        if 'outputs_fine' in data_pred:
-            predicted_labels = data_pred['outputs_fine']['sems'].argmax(
-                dim=-1).reshape([-1]).long().detach().cpu().numpy()
-        else:
-            predicted_labels = data_pred['outputs_coarse']['sems'].argmax(
-                dim=-1).reshape([-1]).long().detach().cpu().numpy()
-
-        if self.ignore_label != -1:
-            valid_pix_ids = true_labels != self.ignore_label
-        else:
-            valid_pix_ids = np.ones_like(true_labels, dtype=bool)
-
+    def iou_calc(self, predicted_labels, true_labels, valid_pix_ids):
         predicted_labels = predicted_labels[valid_pix_ids]
         true_labels = true_labels[valid_pix_ids]
 
@@ -212,11 +198,38 @@ class IoU(Loss):
             miou = 0.
             total_accuracy = 0.
             class_average_accuracy = 0.
-        output = {
-            'miou': torch.tensor([miou], dtype=torch.float32),
-            'total_accuracy': torch.tensor([total_accuracy], dtype=torch.float32),
-            'class_average_accuracy': torch.tensor([class_average_accuracy], dtype=torch.float32)
-        }
+        return miou, total_accuracy, class_average_accuracy
+    def __call__(self, data_pred, data_gt, step, **kwargs):
+        true_labels = data_gt['labels'].reshape([-1]).long().detach().cpu().numpy()
+        if 'outputs_fine' in data_pred:
+            predicted_labels = data_pred['outputs_fine']['sems'].argmax(
+                dim=-1).reshape([-1]).long().detach().cpu().numpy()
+        else:
+            predicted_labels = data_pred['outputs_coarse']['sems'].argmax(
+                dim=-1).reshape([-1]).long().detach().cpu().numpy()
+
+        if self.ignore_label != -1:
+            valid_pix_ids = true_labels != self.ignore_label
+        else:
+            valid_pix_ids = np.ones_like(true_labels, dtype=bool)
+
+        miou, total_accuracy, class_average_accuracy = self.iou_calc(predicted_labels, true_labels, valid_pix_ids)
+        
+        if 'que_sems' in data_pred.keys():
+            predicted_labels = data_pred['que_sems'].argmax(dim=-1).reshape([-1]).long().detach().cpu().numpy()
+            que_miou, _, _ = self.iou_calc(predicted_labels, true_labels, valid_pix_ids)
+            output = {
+                'miou': torch.tensor([miou], dtype=torch.float32),
+                'que_miou': torch.tensor([que_miou], dtype=torch.float32),
+                'total_accuracy': torch.tensor([total_accuracy], dtype=torch.float32),
+                'class_average_accuracy': torch.tensor([class_average_accuracy], dtype=torch.float32)
+            }
+        else:
+            output = {
+                'miou': torch.tensor([miou], dtype=torch.float32),
+                'total_accuracy': torch.tensor([total_accuracy], dtype=torch.float32),
+                'class_average_accuracy': torch.tensor([class_average_accuracy], dtype=torch.float32)
+            }
         return output
 
 
