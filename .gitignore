@@ -133,4 +133,7 @@ docs/assets/generalization/
 docs/assets/llff/
 docs/assets/nerf_synthetic/
 out/
-data/
+data
+
+model_zoo
+out
