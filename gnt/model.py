@@ -165,6 +165,11 @@ class GNTModel(object):
 
         if self.net_fine is not None and "net_fine" in to_load.keys():
             self.net_fine.load_state_dict(to_load["net_fine"], strict=True)
+            self.net_fine = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net_fine)
+
+        self.net_coarse = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net_coarse)
+        self.feature_net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.feature_net)
+        self.feature_fpn = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.feature_fpn)
 
     def load_from_ckpt(
         self, out_folder, load_opt=True, load_scheduler=True, force_latest_ckpt=False
