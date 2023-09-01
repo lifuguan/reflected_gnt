@@ -269,17 +269,17 @@ def train(args):
 
                 if (global_step+1) % args.save_interval == 0:
                     print("Evaluating...")
-                    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores = [],[],[],[]
+                    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores,all_que_iou_scores = [],[],[],[],[]
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
                         indx = 0
-                        psnr_scores,lpips_scores,ssim_scores, iou_scores = [],[],[],[]
+                        psnr_scores,lpips_scores,ssim_scores, iou_scores, que_iou_scores = [],[],[],[],[]
                         for val_data in val_scene:
                             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
                             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
                             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
                             gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
 
-                            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric = log_view(
+                            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric, que_iou_metric = log_view(
                                 indx,
                                 args,
                                 model,
@@ -298,29 +298,35 @@ def train(args):
                             lpips_scores.append(lpips_curr_img)
                             ssim_scores.append(ssim_curr_img)
                             iou_scores.append(iou_metric)
+                            que_iou_scores.append(que_iou_metric)  
                             torch.cuda.empty_cache()
                             indx += 1
-                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Query IoU: {}".format(
                             val_name, 
                             np.mean(psnr_scores),
                             np.mean(lpips_scores),
                             np.mean(ssim_scores),
-                            np.mean(iou_scores)))
+                            np.mean(iou_scores),
+                            np.mean(que_iou_scores)))
                         all_psnr_scores.append(np.mean(psnr_scores))
                         all_lpips_scores.append(np.mean(lpips_scores))
                         all_ssim_scores.append(np.mean(ssim_scores))
                         all_iou_scores.append(np.mean(iou_scores)) 
+                        all_que_iou_scores.append(np.mean(que_iou_scores)) 
                         wandb.log({
                             "val-PSNR/{}".format(val_name): np.mean(psnr_scores), 
-                            "val-IoU/{}".format(val_name): np.mean(iou_scores)})
-                    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+                            "val-IoU/{}".format(val_name): np.mean(iou_scores),
+                            "val-Query-IoU/{}".format(val_name): np.mean(que_iou_scores)})
+                    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Query IoU: {}".format(
                         np.mean(all_psnr_scores),
                         np.mean(all_lpips_scores),
                         np.mean(all_ssim_scores),
-                        np.mean(all_iou_scores)))
+                        np.mean(all_iou_scores),
+                        np.mean(all_que_iou_scores)))
                     wandb.log({
                         "val-PSNR/Average": np.mean(all_psnr_scores), 
-                        "val-IoU/Average": np.mean(all_iou_scores)})
+                        "val-IoU/Average": np.mean(all_iou_scores),
+                        "val-Query-IoU/Average": np.mean(all_que_iou_scores)})
                  
             global_step += 1
             if global_step > model.start_step + args.n_iters + 1:
