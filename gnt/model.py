@@ -60,11 +60,12 @@ class GNTModel(object):
         if self.net_fine is not None:
             learnable_params += list(self.net_fine.parameters())
 
+        for name, parameter in self.net_coarse.named_parameters():
+            parameter.requires_grad = False
+
         if self.net_fine is not None:
             self.optimizer = torch.optim.Adam(
                 [
-                    {"params": self.net_coarse.parameters()},
-                    {"params": self.net_fine.parameters()},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
                     {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
                     {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
@@ -74,7 +75,6 @@ class GNTModel(object):
         else:
             self.optimizer = torch.optim.Adam(
                 [
-                    {"params": self.net_coarse.parameters()},
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
                     {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
                     {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
@@ -92,9 +92,6 @@ class GNTModel(object):
         )
 
         if args.distributed:
-            self.net_coarse = torch.nn.parallel.DistributedDataParallel(
-                self.net_coarse, device_ids=[args.local_rank], output_device=args.local_rank
-            )
 
             self.feature_net = torch.nn.parallel.DistributedDataParallel(
                 self.feature_net, device_ids=[args.local_rank], output_device=args.local_rank
@@ -108,10 +105,6 @@ class GNTModel(object):
                 self.sem_seg_head, device_ids=[args.local_rank], output_device=args.local_rank
             )
 
-            if self.net_fine is not None:
-                self.net_fine = torch.nn.parallel.DistributedDataParallel(
-                    self.net_fine, device_ids=[args.local_rank], output_device=args.local_rank
-                )
 
     def switch_to_eval(self):
         self.net_coarse.eval()
