@@ -442,8 +442,10 @@ def log_view(
     print(prefix + "lpips_image: ", lpips_curr_img)
     print(prefix + "ssim_image: ", ssim_curr_img)
     print(prefix + "iou: ", iou_metric['miou'].item())
+    if 'que_miou' in iou_metric.keys():
+        print(prefix + "que_miou: ", iou_metric['que_miou'].item())
     model.switch_to_train()
-    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item()
+    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item(), iou_metric['que_miou'].item()
 
 
 if __name__ == "__main__":
