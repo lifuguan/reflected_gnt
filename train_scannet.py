@@ -364,8 +364,11 @@ def log_view(
                                        scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
             ref_deep_semantics = model.sem_feature_net(src_images)
             ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+            device = ref_deep_semantics.device
 
-            que_deep_semantics = model.sem_feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
+            que_image = F.interpolate(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device), 
+                                       scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+            que_deep_semantics = model.sem_feature_net(que_image)
             que_deep_semantics = model.feature_fpn(que_deep_semantics)
         
         ret = render_single_image(
@@ -386,8 +389,8 @@ def log_view(
             single_net=single_net,
         )
         
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
         ret['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
@@ -482,8 +485,8 @@ if __name__ == "__main__":
     if args.rank == 0 and args.expname != 'debug':
         wandb.init(
             # set the wandb project where this run will be logged
-            entity="lifuguan",
-            project="General-NeRF",
+            entity="vio-research",
+            project="Semantic-NeRF",
             name=args.expname,
             
             # track hyperparameters and run metadata

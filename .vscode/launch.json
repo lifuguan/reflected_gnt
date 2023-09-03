@@ -65,7 +65,7 @@
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug", "--N_rand", "10"]
+            "args": ["--config", "configs/gnt_scannet_dino.txt", "--expname", "debug", "--N_rand", "10"]
             // "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
         },
         {
