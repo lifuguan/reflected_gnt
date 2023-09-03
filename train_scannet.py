@@ -364,6 +364,9 @@ def log_view(
                                        scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
             ref_deep_semantics = model.sem_feature_net(src_images)
             ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+
+            que_deep_semantics = model.sem_feature_net(gt_img.unsqueeze(0).permute(0, 3, 1, 2).to(ref_coarse_feats.device))
+            que_deep_semantics = model.feature_fpn(que_deep_semantics)
         
         ret = render_single_image(
             ray_sampler=ray_sampler,
