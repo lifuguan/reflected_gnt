@@ -385,7 +385,7 @@ def log_view(
         
         ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
         ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0), None, None).permute(0,2,3,1)
-
+        ret['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
     if args.render_stride != 1:
