@@ -100,11 +100,11 @@ class GNTModel(object):
             )
 
             self.feature_fpn = torch.nn.parallel.DistributedDataParallel(
-                self.feature_fpn, device_ids=[args.local_rank], output_device=args.local_rank
+                self.feature_fpn, device_ids=[args.local_rank], output_device=args.local_rank,find_unused_parameters=True
             )
 
             self.sem_seg_head = torch.nn.parallel.DistributedDataParallel(
-                self.sem_seg_head, device_ids=[args.local_rank], output_device=args.local_rank
+                self.sem_seg_head, device_ids=[args.local_rank], output_device=args.local_rank,find_unused_parameters=True
             )
 
 
@@ -117,12 +117,12 @@ class GNTModel(object):
             self.net_fine.eval()
 
     def switch_to_train(self):
-        self.net_coarse.train()
+        self.net_coarse.eval()
         self.feature_net.train()
         self.feature_fpn.train()
         self.sem_seg_head.train()
         if self.net_fine is not None:
-            self.net_fine.train()
+            self.net_fine.eval()
 
     def save_model(self, filename):
         to_save = {
