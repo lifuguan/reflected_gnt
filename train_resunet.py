@@ -1,6 +1,7 @@
 import os
 import time
 import numpy as np
+import yaml
 import shutil
 import logging
 import torch
@@ -16,7 +17,7 @@ import warnings
 
 from gnt.data_loaders import dataset_dict
 from gnt.feature_network import ResUNetLight
-from gnt.model import OnlySemanticModel
+from gnt.model import OnlySemanticModel, SSLSemModel
 from torch import optim
 from gnt.criterion import SemanticCriterion
 import config
@@ -24,7 +25,6 @@ import config
 from sklearn.metrics import confusion_matrix
 
 from gnt.data_loaders.semantic_dataset import RandomRendererDataset, OrderRendererDataset
-
 
 def nanmean(data, **args):
     return np.ma.masked_array(data, np.isnan(data)).mean(**args)
@@ -140,7 +140,7 @@ class IoU(Loss):
 
 
 @torch.inference_mode()
-def evaluate(net, val_set_names, val_loader_list, device, amp, losses):
+def evaluate(net, val_set_names, val_loader_list, device, amp, losses, args):
     net.eval()
 
     # iterate over the validation set
@@ -151,21 +151,45 @@ def evaluate(net, val_set_names, val_loader_list, device, amp, losses):
             eval_results = {}
             num_val_batches = len(val_loader)
             for batch in tqdm(val_loader, total=num_val_batches, desc=val_name, unit='batch', leave=False):
-                image, mask_true = batch['rgb'], batch['labels']
+                images, mask_true = batch['rgb'], batch['labels']
 
                 # move images and labels to correct device and type
-                image = image.to(device=device, dtype=torch.float32, memory_format=torch.channels_last)
+                images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last)
                 mask_true = mask_true.to(device=device, dtype=torch.long)
 
                 for loss in losses:
                     # predict the mask
-                    masks_pred = net(image.permute(0,3,1,2))
-                    masks_pred = F.interpolate(
+                    if args.model == 'resunet':
+                        masks_pred,_,_ = net(images.permute(0,3,1,2)) # ResUNetLighting
+                        masks_pred = F.interpolate(
                         masks_pred, size=(240, 320), mode="bilinear", align_corners=False
                         ).permute(0,2,3,1)
+                        loss_results=loss({"pixel_label_nr":masks_pred, "pixel_label_gt":mask_true}, None, None)
+                    elif args.model == 'semanticfpn':
+                        masks_pred = net(images.permute(0,3,1,2))
+                        masks_pred = F.interpolate(
+                        masks_pred, size=(240, 320), mode="bilinear", align_corners=False
+                        ).permute(0,2,3,1)
+                        loss_results=loss({"pixel_label_nr":masks_pred, "pixel_label_gt":mask_true}, None, None)
+                    elif args.model == 'SSLSemModel':
+                        images = F.interpolate(images.permute(0,3,1,2), scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+                        masks_pred = net(images)
+                        masks_pred = F.interpolate(
+                        masks_pred, size=(240, 320), mode="bilinear", align_corners=False
+                        ).permute(0,2,3,1)
+                        loss_results=loss({"pixel_label_nr":masks_pred, "pixel_label_gt":   mask_true}, None, None)
+
+                    else:
+                        batch_inputs = []
+                        for i in range(images.shape[0]):
+                            image = images[i]
+                            batch_inputs.append({"image": image.permute(2,0,1)})
+                        masks_pred = net(batch_inputs)
+                        masks_pred['pixel_label_gt'] = mask_true
+                        loss_results=loss(masks_pred,None, None)
+               
                     with warnings.catch_warnings():
                         warnings.simplefilter("ignore")
-                        loss_results=loss({"pixel_label_nr":masks_pred, "pixel_label_gt":mask_true}, None, None)
                     for k,v in loss_results.items():
                         if type(v)==torch.Tensor:
                             v=v.detach().cpu().numpy()
@@ -187,11 +211,26 @@ def evaluate(net, val_set_names, val_loader_list, device, amp, losses):
     net.train()
     return all_eval_results
 
+
+def semantic_branch_setup(semantic_config_file):
+    """
+    Create configs and perform basic setups.
+    """
+    semantic_cfg = get_cfg()
+    # for poly lr schedule
+    add_deeplab_config(semantic_cfg)
+    add_mask_former_config(semantic_cfg)
+    semantic_cfg.merge_from_file(semantic_config_file)
+    semantic_cfg.merge_from_list([])
+    semantic_cfg.freeze()
+    # Setup logger for "mask_former" module
+    return semantic_cfg
+    
 def train_model(
         load,
         device,
         iters: int = 5,
-        batch_size: int = 1,
+        batch_size: int = 16,
         args = None,
         learning_rate: float = 1e-5,
         save_checkpoint: bool = True,
@@ -202,8 +241,8 @@ def train_model(
         gradient_clipping: float = 1.0,
         wandb_name='ResUNet',
 ):
-    # train_set = RandomRendererDataset(is_train=True)
-    train_set = OrderRendererDataset(is_train=True)
+    train_set = RandomRendererDataset(is_train=True)
+    # train_set = OrderRendererDataset(is_train=True)
     # create validation dataset
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
@@ -215,21 +254,35 @@ def train_model(
         print(f'{name} val set len {len(val_loader)}')
 
     # 3. Create data loaders
-    loader_args = dict(batch_size=batch_size, num_workers=4, pin_memory=True)
+    loader_args = dict(batch_size=batch_size, num_workers=64, pin_memory=True)
     train_loader = DataLoader(train_set, shuffle=False, **loader_args)
 
-    # semantic_model = ResUNetLight(out_dim=20+1)
-    semantic_model = OnlySemanticModel(args)
+    if args.model == 'resunet':
+        semantic_model = ResUNetLight(out_dim=20+1)
+    elif args.model == 'semanticfpn':
+        semantic_model = OnlySemanticModel(args)
+    elif args.model == 'SSLSemModel':
+        semantic_model = SSLSemModel(args)
+    else:
+        pass
+    
     if load:
         state_dict = torch.load(load, map_location=device)
         semantic_model.load_state_dict(state_dict)
-        logging.info(f'Model loaded from {load}')
+        print(f'Model loaded from {load}')
+    if args.backbone_pretrain:
+            print("Loading backbone pretrain model from : ", args.backbone_pretrain)
+            state_dict = torch.load(args.backbone_pretrain, map_location=device)
+            semantic_model.feature_net.load_state_dict(state_dict, strict=False)
+            # for param in semantic_model.feature_net.parameters():
+            #     param.requires_grad = False   
     semantic_model.to(device=device)
 
     optimizer = optim.Adam(semantic_model.parameters(),
                               lr=1e-3, weight_decay=1.0e-5)
-    scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer, 'max', patience=5)  # goal: maximize Dice score
-    grad_scaler = torch.cuda.amp.GradScaler(enabled=amp)
+    scheduler = torch.optim.lr_scheduler.StepLR(
+            optimizer, step_size=args.lrate_decay_steps, gamma=args.lrate_decay_factor
+        )
 
     plotter = SemanticCriterion(args)
     criterion = SemanticLoss({"ignore_label":20, "semantic_loss_scale": 0.25})
@@ -248,53 +301,104 @@ def train_model(
             images = images.to(device=device, dtype=torch.float32, memory_format=torch.channels_last).permute(0,3,1,2)
             true_masks = true_masks.to(device=device, dtype=torch.long)
 
-            # masks_pred,_,_ = semantic_model(images)
-            masks_pred = semantic_model(images)
-            masks_pred = F.interpolate(
-                masks_pred, size=(240, 320), mode="bilinear", align_corners=False).permute(0,2,3,1)
-            loss_semantic = criterion({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks},None, global_step)
-            loss = loss_semantic['loss_semantic']
+            if args.model == 'resunet':
+                masks_pred,_,_ = semantic_model(images) # ResUNetLighting
+                masks_pred = F.interpolate(
+                    masks_pred, size=(240, 320), mode="bilinear", align_corners=False).permute(0,2,3,1)
+                loss_semantic = criterion({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks},None, global_step)
+                loss = loss_semantic['loss_semantic']
+            elif args.model == 'semanticfpn':
+                masks_pred = semantic_model(images).permute(0,2,3,1)  # OnlySemantic
+                loss_semantic = criterion({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks},None, global_step)
+                loss = loss_semantic['loss_semantic']
+            elif args.model == 'SSLSemModel':
+                images = F.interpolate(images, scale_factor = 2, mode='bilinear', align_corners=True) # 先扩展一倍
+                masks_pred = semantic_model(images).permute(0,2,3,1)  # OnlySemantic
+                loss_semantic = criterion({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks},None, global_step)
+                loss = loss_semantic['loss_semantic']
+            else:                
+                batch_inputs = []
+                for i in range(images.shape[0]):
+                    image = images[i]
+                    true_mask = true_masks[i]
+                    instances = Instances((240, 320))
+                    classes = true_mask.unique()
+                    classes = classes[classes != 20]
+                    masks = []
+                    for class_id in classes:
+                        masks.append(true_mask == class_id)
+                    instances.gt_classes = classes
+                    if len(masks) == 0:
+                        # Some image does not have annotation (all ignored)
+                        instances.gt_masks = torch.zeros((0, true_mask.shape[-2], true_mask.shape[-1]))
+                    else:
+                        instances.gt_masks = torch.stack(masks)
+                    
+                    batch_input = {
+                        "image": image,
+                        "sem_seg": true_mask,
+                        "instances": instances
+                    }  
+                    batch_inputs.append(batch_input)
+                semantic_output = semantic_model(batch_inputs)
+                loss = 0
+                for k, v in semantic_output.items():
+                    loss = loss+torch.mean(v)
+
+
 
             optimizer.zero_grad(set_to_none=True)
-            grad_scaler.scale(loss).backward()
-            torch.nn.utils.clip_grad_norm_(semantic_model.parameters(), gradient_clipping)
-            grad_scaler.step(optimizer)
-            grad_scaler.update()
+            loss.backward()
+            optimizer.step()
+            scheduler.step()
 
             global_step += 1
             iters_loss += loss.item()
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")
-                iou_metric=evaluator({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks}, None, None)
-            print('loss: {}   miou: {}'.format(loss.item(), iou_metric['miou'].item()))
-            if args.expname != 'debug':
-                experiment.log({'train loss': loss.item(), 'train/iou':iou_metric['miou'].item()})
-
-            ray_batch = {"rgb": images, "sems": masks_pred, "labels": true_masks}
-            if (global_step+1) % 10000 == 0:
-                _ = plotter.plot_semantic_results(ray_batch, ray_batch, global_step)
-                val_score = evaluate(semantic_model, val_set_names, val_set_lists, device, amp, [evaluator])
-                scheduler.step(val_score['miou'])
+            if args.model == 'maskformer':
+                print('step: {}, loss: {}'.format(global_step, loss.item()))
+                if args.expname != 'debug':
+                    experiment.log({'train/loss': loss.item()})
+            else:
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore")
+                    iou_metric=evaluator({"pixel_label_nr":masks_pred, "pixel_label_gt":true_masks}, None, None)
+                print('loss: {}   miou: {}'.format(loss.item(), iou_metric['miou'].item()))
+                if args.expname != 'debug':
+                    experiment.log({'train loss': loss.item(), 'train/iou':iou_metric['miou'].item()})
+            if (global_step+1) % 2000 == 0:
+                if args.batch_size == 1:
+                    ray_batch = {"rgb": images, "sems": masks_pred, "labels": true_masks}
+                    _ = plotter.plot_semantic_results(ray_batch, ray_batch, global_step)
+                val_score = evaluate(semantic_model, val_set_names, val_set_lists, device, amp, [evaluator], args)
                 if args.expname != 'debug':
                     experiment.log(val_score)
                     experiment.log({
                             'learning rate': optimizer.param_groups[0]['lr'],
                             # 'images': wandb.Image(images.cpu().numpy()),
-                            'masks': {
-                                'true': wandb.Image(true_masks[0].float().cpu().numpy()),
-                                'pred': wandb.Image(masks_pred[0].argmax(dim=2).float().cpu().numpy())}})
-                
+                            # 'masks': {
+                            #     'true': wandb.Image(true_masks[0].float().cpu().numpy()),
+                            #     'pred': wandb.Image(masks_pred[0].argmax(dim=2).float().cpu().numpy())}
+                                })
+
+                dir_checkpoint = Path('./out/'+args.expname)
+                Path(dir_checkpoint).mkdir(parents=True, exist_ok=True)
+                state_dict = semantic_model.state_dict()
+                torch.save(state_dict, str(dir_checkpoint / 'checkpoint_iter{}.pth'.format(global_step)))
+                print(f'Checkpoint {global_step} saved!')
+            
             if global_step == iters: break
 
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the ResUNet on images and target masks')
-    parser.add_argument('--iters', type=int, default=260000, help='Number of iters')
+    parser.add_argument('--iters', type=int, default=50000, help='Number of iters')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=1, help='Batch size')
     parser.add_argument('--learning-rate', '-l', metavar='LR', type=float, default=1e-5,
                         help='Learning rate', dest='lr')
     parser.add_argument('--load', '-f', type=str, default='', help='Load model from a .pth file')
+    parser.add_argument('--backbone_pretrain', type=str, default='', help='Load model from a .pth file')
     parser.add_argument('--name', type=str, default='Order', help='Load model from a .pth file')
+    parser.add_argument('--model', type=str, default='resunet', help='')
     parser.add_argument('--expname', type=str, default='debug', help='Load model from a .pth file')
     parser.add_argument('--scale', '-s', type=float, default=0.5, help='Downscaling factor of the images')
     parser.add_argument('--validation', '-v', dest='val', type=float, default=10.0,
@@ -313,12 +417,28 @@ def get_args():
     )
     parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_test_split.txt")
 
+    parser.add_argument('--selected_inds', action="store_true")
+
+    parser.add_argument(
+        "--lrate_decay_factor",
+        type=float,
+        default=0.6,
+        help="decay learning rate by a factor every specified number of steps",
+    )
+    parser.add_argument(
+        "--lrate_decay_steps",
+        type=int,
+        default=20000,
+        help="decay learning rate by a factor every specified number of steps",
+    )
+
     parser.add_argument(
         "--single_net",
         type=bool,
         default=True,
         help="use single network for both coarse and/or fine sampling",
     )
+    parser.add_argument('--unbounded', action="store_true")
     return parser.parse_args()
 
 
@@ -365,6 +485,5 @@ if __name__ == '__main__':
         amp=args.amp,
         wandb_name=args.name
     )
-
 
 

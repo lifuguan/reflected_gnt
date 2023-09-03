@@ -129,8 +129,8 @@ class RandomRendererDataset(Dataset):
             all_pose_files.append(pose_files)
 
         index = np.arange(len(all_rgb_files))
-        self.all_rgb_files = np.array(all_rgb_files)[index]
-        self.all_label_files = np.array(all_label_files)[index]
+        self.all_rgb_files = np.array(all_rgb_files, dtype=object)[index]
+        self.all_label_files = np.array(all_label_files, dtype=object)[index]
 
         mapping_file = 'data/scannet/scannetv2-labels.combined.tsv'
         mapping_file = pd.read_csv(mapping_file, sep='\t', header=0)

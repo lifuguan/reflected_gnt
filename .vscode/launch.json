@@ -84,7 +84,8 @@
             "program": "${workspaceFolder}/train_resunet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            // "args": ["--load", "/home/hao/lihao/Semantic-Ray/out/Order(3 scene)/checkpoint_iter29999.pth"]
+            "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
+            // "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
         },
         {
             "name": "train: semantic_model",

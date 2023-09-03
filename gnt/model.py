@@ -228,3 +228,20 @@ class OnlySemanticModel(nn.Module):
         sem_out = self.sem_seg_head(que_deep_semantics, None, None)
         return sem_out
 
+class SSLSemModel(nn.Module):
+    def __init__(self, args) -> None:
+        super(SSLSemModel, self).__init__()
+        # create feature extraction network
+        self.feature_net = resnet50()
+
+        # self.feature_net = models.resnet50()
+
+        self.feature_fpn = FPN(in_channels=[256, 512, 1024, 2048], out_channels=128, concat_out=True)
+        self.sem_seg_head = NeRFSemSegFPNHead(args)
+
+    def forward(self, rgb) -> torch.Tensor:
+        que_deep_semantics = self.feature_net(rgb)
+        que_deep_semantics = self.feature_fpn(que_deep_semantics)
+        sem_out = self.sem_seg_head(que_deep_semantics, None, None)
+        return sem_out
+    
