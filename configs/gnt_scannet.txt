@@ -19,6 +19,9 @@ lrate_decay_steps = 100000
 single_net = True
 trans_depth = 8
 
+render_loss_scale = 0.1
+semantic_loss_scale = 0.9
+
 ### TESTING
 chunk_size = 2000
 

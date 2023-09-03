@@ -178,7 +178,7 @@ def train(args):
                 ray_batch=ray_batch,
                 model=model,
                 projector=projector,
-                featmaps=ref_coarse_feats,
+                featmaps=ref_coarse_feats.detach(),
                 ref_deep_semantics=ref_deep_semantics, # reference encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
@@ -212,7 +212,7 @@ def train(args):
 
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
-            # scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
+            scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
             scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]
             # end of core optimization loop
             dt = time.time() - time0

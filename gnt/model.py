@@ -52,16 +52,16 @@ class GNTModel(object):
         self.sem_seg_head = NeRFSemSegFPNHead().to(device)
 
         # optimizer and learning rate scheduler
-        learnable_params = list(self.net_coarse.parameters())
-        learnable_params += list(self.feature_net.parameters())
+        learnable_params = list(self.feature_net.parameters())
         learnable_params += list(self.feature_fpn.parameters())
         learnable_params += list(self.sem_seg_head.parameters())
 
-        if self.net_fine is not None:
-            learnable_params += list(self.net_fine.parameters())
 
         for name, parameter in self.net_coarse.named_parameters():
-            parameter.requires_grad = False
+            if "rgb_fc" in name:
+                pass
+            else:
+                parameter.requires_grad = False
 
         if self.net_fine is not None:
             self.optimizer = torch.optim.Adam(
@@ -69,8 +69,7 @@ class GNTModel(object):
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
                     {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
                     {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
-                ],
-                lr=args.lrate_gnt,
+                ]
             )
         else:
             self.optimizer = torch.optim.Adam(
@@ -78,8 +77,7 @@ class GNTModel(object):
                     {"params": self.feature_net.parameters(), "lr": args.lrate_feature},
                     {"params": self.feature_fpn.parameters(), "lr": args.lrate_semantic},
                     {"params": self.sem_seg_head.parameters(), "lr": args.lrate_semantic},
-                ],
-                lr=args.lrate_gnt,
+                ]
             )
 
         self.scheduler = torch.optim.lr_scheduler.StepLR(
@@ -93,8 +91,12 @@ class GNTModel(object):
 
         if args.distributed:
 
+            self.net_coarse = torch.nn.parallel.DistributedDataParallel(
+                self.net_coarse, device_ids=[args.local_rank], output_device=args.local_rank,find_unused_parameters=True
+            )
+
             self.feature_net = torch.nn.parallel.DistributedDataParallel(
-                self.feature_net, device_ids=[args.local_rank], output_device=args.local_rank
+                self.feature_net, device_ids=[args.local_rank], output_device=args.local_rank,find_unused_parameters=True
             )
 
             self.feature_fpn = torch.nn.parallel.DistributedDataParallel(
