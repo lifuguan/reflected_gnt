@@ -3,6 +3,7 @@ import torch.nn as nn
 import os
 from gnt.transformer_network import GNT
 from gnt.feature_network import ResUNet, ResUNetLight
+from gnt.sem_feature_network import resnet50
 from gnt.fpn import FPN
 from gnt.semantic_branch import NeRFSemSegFPNHead
 
@@ -49,7 +50,7 @@ class GNTModel(object):
         # self.feature_net = ResUNetLight(out_dim=20+1).to(device)
 
         self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
-        self.sem_seg_head = NeRFSemSegFPNHead().to(device)
+        self.sem_seg_head = NeRFSemSegFPNHead(args).to(device)
 
         # optimizer and learning rate scheduler
         learnable_params = list(self.net_coarse.parameters())
@@ -220,7 +221,7 @@ class OnlySemanticModel(nn.Module):
         # self.feature_net = ResUNetLight(out_dim=20+1).to(device)
 
         self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True)
-        self.sem_seg_head = NeRFSemSegFPNHead()
+        self.sem_seg_head = NeRFSemSegFPNHead(args)
 
     def forward(self, rgb) -> torch.Tensor:
         _, _, que_deep_semantics = self.feature_net(rgb)
