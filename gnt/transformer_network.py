@@ -229,6 +229,7 @@ class GNT(nn.Module):
 
         # NOTE: Apologies for the confusing naming scheme, here view_crosstrans refers to the view transformer, while the view_selftrans refers to the ray transformer
         self.view_selftrans = nn.ModuleList([])
+        self.view_sem_selftrans = nn.ModuleList([])
         self.view_crosstrans = nn.ModuleList([])
         self.q_fcs = nn.ModuleList([])
         for i in range(args.trans_depth):
@@ -288,7 +289,9 @@ class GNT(nn.Module):
             log_sampling=True,
             periodic_fns=[torch.sin, torch.cos],
         )
-
+        self.semantic_adaptor = nn.Sequential(
+                    nn.Linear(512, 512),
+                    nn.ReLU())
     def forward(self, rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d):
         # compute positional embeddings
         viewdirs = ray_d
@@ -334,16 +337,8 @@ class GNT(nn.Module):
         # normalize & rgb
         h = self.norm(q)
         outputs = self.rgb_fc(h.mean(dim=1))
-        if self.semantic_model == 'fc':
-            sem_outputs = self.semantic_fc(h.mean(dim=1))
-        else:
-            sem_outputs = None
-            
-        if self.ret_alpha and self.save_feature is False:
-            return torch.cat([outputs, attn], dim=1), None, sem_outputs
-        elif self.ret_alpha and self.save_feature:
-            return torch.cat([outputs, attn], dim=1), \
-                   torch.stack(deep_sem_out, dim=0).sum(dim=0).mean(dim=1), \
-                   sem_outputs
-        else:
-            return outputs, None, None
+
+        sem_feat = torch.stack(deep_sem_out, dim=0).sum(dim=0).mean(dim=1)
+        sem_feat = self.semantic_adaptor(sem_feat)
+        return torch.cat([outputs, attn], dim=1), sem_feat, None
+                

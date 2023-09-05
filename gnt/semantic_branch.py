@@ -41,24 +41,38 @@ class NeRFSemSegFPNHead(nn.Module):
         
         self.predictor = Conv2d(conv_dims, num_classes + 1, kernel_size=1, stride=1, padding=0)
 
+    def original_index_to_downsampled_index(self, original_index):
+        original_width, downsample_factor = 320, 2
+        original_row = (original_index-1) // original_width
+        original_col = (original_index-1) % original_width
+        
+        downsampled_row = original_row // downsample_factor
+        downsampled_col = original_col // downsample_factor
+        
+        downsampled_index = downsampled_row * (original_width // downsample_factor) + downsampled_col
+        
+        return downsampled_index
+    
     def forward(self, deep_feats, out_feats, select_inds):
-        h, w = deep_feats.shape[-2:]
         #######   replace feature map           #######
         if select_inds is not None:
-            batch=1
-            ratio = 240 * 320 // (deep_feats.shape[-2] * deep_feats.shape[-1])
             deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
-            re_select_inds = torch.tensor([select_ind // ratio for select_ind in select_inds])
-            deep_feats[re_select_inds] = out_feats
-            chunks = torch.chunk(deep_feats, 4, dim=1)
+
+            re_select_inds = []
+            for select_ind in select_inds:
+                re_select_inds.append(self.original_index_to_downsampled_index(select_ind))
+            
+            # distill loss
+            device = deep_feats.device
+            novel_feats = deep_feats[re_select_inds].detach()
+            loss_distillation = F.cosine_embedding_loss(novel_feats, out_feats, torch.ones((len(re_select_inds))).to(device), reduction='mean')
         else:
-            batch = deep_feats.shape[0]
-            deep_feats = deep_feats.reshape(batch, deep_feats.shape[1], -1).permute(0,2,1)
-            chunks = torch.chunk(deep_feats, 4, dim=2)
+            deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
 
         ####### constrcut feature pyramids and Decoder  #######
+        chunks = torch.chunk(deep_feats, 4, dim=1)
         for i, chunk in enumerate(chunks):
-            chunk = chunk.reshape(batch, h, w, chunk.shape[-1]).permute(0,3,1,2) # batch, 512, h, w
+            chunk = chunk.reshape(120, 160, chunk.shape[-1]).permute(2,0,1).unsqueeze(0) # 1, 512, h, w
             if i == 0:
                 x = self.scale_heads[i](chunk)
             else:
@@ -67,4 +81,7 @@ class NeRFSemSegFPNHead(nn.Module):
 
         out = self.predictor(x)
         out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)
-        return out 
+        if select_inds is not None:
+            return out, loss_distillation
+        else:
+            return out

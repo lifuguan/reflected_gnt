@@ -155,7 +155,7 @@ class GNTModel(object):
         if load_scheduler:
             self.scheduler.load_state_dict(to_load["scheduler"])
 
-        self.net_coarse.load_state_dict(to_load["net_coarse"], strict=True)
+        self.net_coarse.load_state_dict(to_load["net_coarse"], strict=False)
         if self.feature_net is not None and "feature_net" in to_load.keys():
             self.feature_net.load_state_dict(to_load["feature_net"], strict=True)
         if self.feature_fpn is not None and "feature_fpn" in to_load.keys():

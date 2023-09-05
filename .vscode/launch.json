@@ -59,13 +59,16 @@
             "args": ["--o", "data"]
         },
         {
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "1"
+            },
             "name": "train: semantic",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_semantic_lr2/model_050000.pth", "--no_load_opt", "--no_load_scheduler"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_smeantic_0831_4/model_stage_2.pth", "--no_load_opt", "--no_load_scheduler"]
             // "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
         },
         {
