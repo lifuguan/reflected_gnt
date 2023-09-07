@@ -179,7 +179,7 @@ def train(args):
                 model=model,
                 projector=projector,
                 featmaps=ref_coarse_feats,
-                ref_deep_semantics=ref_deep_semantics.detach(), # reference encoder的语义输出
+                ref_deep_semantics=ref_deep_semantics, # reference encoder的语义输出
                 # ref_deep_semantics=ref_deep_semantics, # reference encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
@@ -193,7 +193,7 @@ def train(args):
             )
 
             selected_inds = ray_batch["selected_inds"]
-            corase_sem_out, loss_distill = model.sem_seg_head(que_deep_semantics, ret['outputs_fine']['feats_out'], selected_inds)
+            corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_fine']['feats_out'], selected_inds)
             del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
             ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
             ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
@@ -203,7 +203,7 @@ def train(args):
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
             semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale
+            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss']
 
             model.optimizer.zero_grad()
             loss.backward()
@@ -213,7 +213,6 @@ def train(args):
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
             scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
-            scalars_to_log["train/distill-loss"] = loss_distill.item()
             scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]
             # end of core optimization loop
             dt = time.time() - time0

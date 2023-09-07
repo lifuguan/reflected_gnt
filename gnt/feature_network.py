@@ -294,7 +294,7 @@ class ResUNet(nn.Module):
         x2 = self.layer2(x1)
         x3 = self.layer3(x2)
 
-        x = self.upconv3(x3.detach())
+        x = self.upconv3(x3)
         x = self.skipconnect(x2, x)
         x = self.iconv3(x)
 

@@ -14,8 +14,8 @@ python -m torch.distributed.launch --nproc_per_node=2 \
 
 
 
-export CUDA_VISIBLE_DEVICES=0,1,6,7
+export CUDA_VISIBLE_DEVICES=2,3,4,5
 python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        train_scannet.py --config configs/gnt_scannet.txt \
-       --ckpt_path ./out/7_gpu_0903_2/model_239999.pth --expname distill_gpu_4 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
+       --ckpt_path ./out/7_gpu_0903_2/model_stage_2.pth --expname no_agg_deatch_gpu_4 --val_set_list configs/scannetv2_test_split.txt --no_load_opt --no_load_scheduler
