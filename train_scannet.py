@@ -203,7 +203,7 @@ def train(args):
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
             semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill
+            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale
 
             model.optimizer.zero_grad()
             loss.backward()

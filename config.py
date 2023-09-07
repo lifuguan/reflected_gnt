@@ -213,6 +213,8 @@ def config_parser():
     parser.add_argument('--ignore_label', type=int, default=20)
 
     parser.add_argument('--render_loss_scale', type=float, default=0.25)
+
+    parser.add_argument('--distill_loss_scale', type=float, default=0.25)
     parser.add_argument('--semantic_loss_scale', type=float, default=0.75)
 
     parser.add_argument('--save_feature', type=bool, default=False)
