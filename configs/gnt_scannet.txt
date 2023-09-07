@@ -10,7 +10,7 @@ dataset_weights = [1]
 eval_dataset = val_scannet
 
 ### TRAINING
-N_rand = 512
+N_rand = 400
 lrate_feature = 0.005
 lrate_semantic = 0.005
 lrate_gnt = 0.00001
