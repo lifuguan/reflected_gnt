@@ -109,7 +109,9 @@ class SemanticLoss(Loss):
 
 class DepthLoss(nn.Module):
 
-    def __init__(self, cfg):
+    def __init__(self, args):
+        self.depth_loss_scale = args.depth_loss_scale
+
         self.depth_correct_thresh = 0.02
         self.depth_loss_type = 'l2'
         self.depth_loss_l1_beta = 0.05
@@ -117,18 +119,12 @@ class DepthLoss(nn.Module):
             self.loss_op = nn.SmoothL1Loss(
                 reduction='none', beta=self.args['depth_loss_l1_beta'])
 
-    def __call__(self, data_pr, data_gt, step, **kwargs):
-        if 'true_depth' not in data_gt['ref_imgs_info']:
-            return {'loss_depth': torch.zeros([1], dtype=torch.float32, device=data_pr['pixel_colors_nr'].device)}
-        coords = data_pr['depth_coords']  # rfn,pn,2
-        depth_pr = data_pr['depth_mean']  # rfn,pn
-        depth_maps = data_gt['ref_imgs_info']['true_depth']  # rfn,1,h,w
-        rfn, _, h, w = depth_maps.shape
-        depth_gt = interpolate_feats(
-            depth_maps, coords, h, w, padding_mode='border', align_corners=True)[..., 0]   # rfn,pn
+    def __call__(self, data_pr, data_gt, **kwargs):
+        depth_pr = data_pr['outputs_coarse']['depth']  # pn
+        depth_gt = data_gt['true_depth']  # pn
 
         # transform to inverse depth coordinate
-        depth_range = data_gt['ref_imgs_info']['depth_range']  # rfn,2
+        depth_range = data_gt['depth_range']  # rfn,2
         near, far = -1/depth_range[:, 0:1], -1/depth_range[:, 1:2]  # rfn,1
 
         def process(depth):
@@ -144,25 +140,16 @@ class DepthLoss(nn.Module):
             if self.depth_loss_type == 'l2':
                 loss = (depth_gt - depth_pr)**2
             elif self.depth_loss_type == 'smooth_l1':
-                loss = self.loss_op(depth_gt, depth_pr)
+                loss = self.loss_op(depth_gt, depth_pr) 
 
-            if data_gt['scene_name'].startswith('gso'):
-                # rfn,1,h,w
-                depth_maps_noise = data_gt['ref_imgs_info']['depth']
-                depth_aug = interpolate_feats(
-                    depth_maps_noise, coords, h, w, padding_mode='border', align_corners=True)[..., 0]  # rfn,pn
-                depth_aug = process(depth_aug)
-                mask = (torch.abs(depth_aug-depth_gt) <
-                        self.depth_correct_thresh).float()
-                loss = torch.sum(loss * mask, 1) / (torch.sum(mask, 1) + 1e-4)
-            else:
-                loss = torch.mean(loss, 1)
+            losses = torch.mean(loss, 1)
+            loss = torch.mean(loss)
             return loss
 
-        outputs = {'loss_depth': compute_loss(depth_pr)}
-        if 'depth_mean_fine' in data_pr:
-            outputs['loss_depth_fine'] = compute_loss(
-                data_pr['depth_mean_fine'])
+        outputs = {'train/depth-loss': compute_loss(depth_pr)}
+        if 'outputs_fine' in data_pr:
+            outputs['train/depth-loss'] += compute_loss(data_pr['outputs_fine']['depth'])
+        outputs['train/depth-loss'] = outputs['train/depth-loss'] * self.depth_loss_scale
         return outputs
     
 # From https://github.com/Harry-Zhi/semantic_nerf/blob/a0113bb08dc6499187c7c48c3f784c2764b8abf1/SSR/training/training_utils.py

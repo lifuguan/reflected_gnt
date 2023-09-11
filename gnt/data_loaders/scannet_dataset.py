@@ -40,7 +40,7 @@ class ScannetTrainDataset(Dataset):
         self.ratio = image_size / 1296
         self.h, self.w = int(self.ratio*972), int(image_size)
 
-        all_rgb_files, all_pose_files, all_label_files, all_intrinsics_files = [],[],[],[]
+        all_rgb_files, all_depth_files, all_pose_files, all_label_files, all_intrinsics_files = [],[],[],[],[]
         for i, scene_path in enumerate(self.scene_path_list):
             scene_path = os.path.join(args.rootdir + 'data', scene_path[:-10])
             pose_files = []
@@ -53,18 +53,21 @@ class ScannetTrainDataset(Dataset):
                     pose_files.append(path)
                     
             rgb_files = [f.replace("pose", "color").replace("txt", "jpg") for f in pose_files]
+            depth_files = [f.replace("pose", "depth").replace("txt", "png") for f in pose_files]
             intrinsics_files = [
                 os.path.join(scene_path, 'intrinsic/intrinsic_color.txt') for f in rgb_files
             ]
             label_files = [f.replace("pose", "label-filt").replace("txt", "png") for f in pose_files]
 
             all_rgb_files.append(rgb_files)
+            all_depth_files.append(depth_files)
             all_label_files.append(label_files)
             all_pose_files.append(pose_files)
             all_intrinsics_files.append(intrinsics_files)
 
         index = np.arange(len(all_rgb_files))
         self.all_rgb_files = np.array(all_rgb_files, dtype=object)[index]
+        self.all_depth_files = np.array(all_depth_files, dtype=object)[index]
         self.all_label_files = np.array(all_label_files, dtype=object)[index]
         self.all_pose_files = np.array(all_pose_files, dtype=object)[index]
         self.all_intrinsics_files = np.array(all_intrinsics_files, dtype=object)[index]
@@ -99,6 +102,7 @@ class ScannetTrainDataset(Dataset):
         
         real_idx = idx % len(self.all_rgb_files)
         rgb_files = self.all_rgb_files[real_idx]
+        depth_files = self.all_depth_files[real_idx]
         pose_files = self.all_pose_files[real_idx]
         label_files = self.all_label_files[real_idx]
         intrinsics_files = self.all_intrinsics_files[real_idx]
@@ -125,11 +129,15 @@ class ScannetTrainDataset(Dataset):
             id_feat[np.random.choice(len(id_feat))] = id_render
 
         rgb = imageio.imread(rgb_files[id_render]).astype(np.float32) / 255.0
-
         if self.w != 1296:
             rgb = cv2.resize(downsample_gaussian_blur(
                 rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
             
+        img = Image.open(depth_files[id_render])
+        depth = np.asarray(img, dtype=np.float32) / 1000.0  # mm -> m
+        depth = np.ascontiguousarray(depth, dtype=np.float32)
+        depth = cv2.resize(depth, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+
         intrinsics = np.loadtxt(intrinsics_files[id_render]).reshape([4, 4])
         intrinsics[:2, :] *= self.ratio
 
@@ -148,11 +156,11 @@ class ScannetTrainDataset(Dataset):
 
         all_poses = [render_pose]
         # get depth range
-        min_ratio = 0.1
-        origin_depth = np.linalg.inv(render_pose)[2, 3]
-        max_radius = 0.5 * np.sqrt(2) * 1.1
-        near_depth = max(origin_depth - max_radius, min_ratio * origin_depth)
-        far_depth = origin_depth + max_radius
+        # min_ratio = 0.1
+        # origin_depth = np.linalg.inv(render_pose)[2, 3]
+        # max_radius = 0.5 * np.sqrt(2) * 1.1
+        # near_depth = max(origin_depth - max_radius, min_ratio * origin_depth)
+        # far_depth = origin_depth + max_radius
         # depth_range = torch.tensor([near_depth, far_depth])
         depth_range = torch.tensor([0.1, 10.0])
 
@@ -183,6 +191,7 @@ class ScannetTrainDataset(Dataset):
 
         return {
             "rgb": torch.from_numpy(rgb),
+            "true_depth": torch.from_numpy(depth),
             "labels": torch.from_numpy(label),
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[id_render],

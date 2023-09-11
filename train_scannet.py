@@ -16,9 +16,8 @@ from gnt.ibrnet import IBRNetModel
 
 
 from gnt.sample_ray import RaySamplerSingleImage
-from gnt.criterion import SemanticCriterion
 from utils import img_HWC2CHW, img2psnr, colorize, img2psnr, lpips, ssim
-from gnt.loss import RenderLoss, SemanticLoss, IoU
+from gnt.loss import RenderLoss, DepthLoss, SemanticLoss, IoU
 import config
 import torch.distributed as dist
 from gnt.projection import Projector
@@ -142,6 +141,7 @@ def train(args):
 
     # Create criterion
     render_criterion = RenderLoss(args)
+    depth_criterion = DepthLoss(args)
     semantic_criterion = SemanticLoss(args)
     iou_criterion = IoU(args)
     scalars_to_log = {}
@@ -202,8 +202,9 @@ def train(args):
 
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
+            depth_loss = depth_criterion(ret, ray_batch)
             semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale
+            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale + depth_loss['train/depth-loss']
 
             model.optimizer.zero_grad()
             loss.backward()
@@ -212,6 +213,7 @@ def train(args):
 
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
+            scalars_to_log["train/depth-loss"] = depth_loss['train/depth-loss'].item()
             scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
             scalars_to_log["train/distill-loss"] = loss_distill.item()
             scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]
