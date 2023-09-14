@@ -72,13 +72,16 @@
             // "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
         },
         {
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "7"
+            },
             "name": "eval: semantic",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "gnt_scannet_0815_selected_inds", "--no_load_opt", "--ckpt_path", "./oout/gnt_scannet_0815_selected_inds/model_199999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--N_rand", "300", "--expname", "distill_gpu_4", "--no_load_opt", "--ckpt_path", "./out/distill_gpu_4/model_299999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
             "name": "train: resunet",

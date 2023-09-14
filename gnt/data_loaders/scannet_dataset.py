@@ -224,6 +224,7 @@ class ScannetValDataset(Dataset):
                 pose_files.append(path)
                 
         rgb_files = [f.replace("pose", "color").replace("txt", "jpg") for f in pose_files]
+        depth_files = [f.replace("pose", "depth").replace("txt", "png") for f in pose_files]
         intrinsics_files = [
             os.path.join(scene_path, 'intrinsic/intrinsic_color.txt') for f in rgb_files
         ]
@@ -231,6 +232,7 @@ class ScannetValDataset(Dataset):
 
         index = np.arange(len(rgb_files))
         self.rgb_files = np.array(rgb_files, dtype=object)[index]
+        self.depth_files = np.array(depth_files, dtype=object)[index]
         self.label_files = np.array(label_files, dtype=object)[index]
         self.pose_files = np.array(pose_files, dtype=object)[index]
         self.intrinsics_files = np.array(intrinsics_files, dtype=object)[index]
@@ -269,6 +271,7 @@ class ScannetValDataset(Dataset):
             que_idx = self.val_que_idxs[idx]
 
         rgb_files = self.rgb_files
+        depth_files = self.depth_files
         pose_files = self.pose_files
         label_files = self.label_files
         intrinsics_files = self.intrinsics_files
@@ -292,6 +295,11 @@ class ScannetValDataset(Dataset):
         # occasionally include input image
         if np.random.choice([0, 1], p=[0.995, 0.005]):
             id_feat[np.random.choice(len(id_feat))] = que_idx
+
+        img = Image.open(depth_files[que_idx])
+        depth = np.asarray(img, dtype=np.float32) / 1000.0  # mm -> m
+        depth = np.ascontiguousarray(depth, dtype=np.float32)
+        depth = cv2.resize(depth, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
 
         rgb = imageio.imread(rgb_files[que_idx]).astype(np.float32) / 255.0
 
@@ -352,6 +360,7 @@ class ScannetValDataset(Dataset):
 
         return {
             "rgb": torch.from_numpy(rgb),
+            "true_depth": torch.from_numpy(depth),
             "labels": torch.from_numpy(label),
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[que_idx],
