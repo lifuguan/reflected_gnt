@@ -143,8 +143,7 @@ class DepthLoss(nn.Module):
                 loss = self.loss_op(depth_gt, depth_pr) 
 
             losses = torch.mean(loss, 1)
-            loss = torch.mean(loss)
-            return loss
+            return torch.mean(losses)
 
         outputs = {'train/depth-loss': compute_loss(depth_pr)}
         if 'outputs_fine' in data_pr:

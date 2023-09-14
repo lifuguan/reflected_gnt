@@ -93,7 +93,7 @@ def eval(args):
             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
-            gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
+            gt_depth = val_data['true_depth'][0]
 
             psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric = log_view(
                 indx,
@@ -102,7 +102,7 @@ def eval(args):
                 tmp_ray_sampler,
                 projector,
                 gt_img,
-                gt_labels,
+                gt_depth,
                 evaluator=[iou_criterion, semantic_criterion],
                 render_stride=args.render_stride,
                 prefix="val/" if args.run_val else "train/",
@@ -157,7 +157,7 @@ def log_view(
     ray_sampler,
     projector,
     gt_img,
-    gt_labels,
+    gt_depth,
     evaluator,
     render_stride=1,
     prefix="",
@@ -198,6 +198,7 @@ def log_view(
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
     if args.render_stride != 1:
         gt_img = gt_img[::render_stride, ::render_stride]
+        gt_depth = gt_depth[::render_stride, ::render_stride]
         average_im = average_im[::render_stride, ::render_stride]
 
     rgb_gt = img_HWC2CHW(gt_img)
@@ -213,7 +214,9 @@ def log_view(
     rgb_im[:, : rgb_pred.shape[-2], 2 * w_max : 2 * w_max + rgb_pred.shape[-1]] = rgb_pred
     if "depth" in ret["outputs_coarse"].keys():
         depth_pred = ret["outputs_coarse"]["depth"].detach().cpu()
-        depth_im = img_HWC2CHW(colorize(depth_pred, cmap_name="jet"))
+        depth_pred = torch.cat((colorize(gt_depth.detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
+
+        depth_im = img_HWC2CHW(depth_pred)
     else:
         depth_im = None
     
@@ -222,8 +225,8 @@ def log_view(
         rgb_fine_ = torch.zeros(3, h_max, w_max)
         rgb_fine_[:, : rgb_fine.shape[-2], : rgb_fine.shape[-1]] = rgb_fine
         rgb_im = torch.cat((rgb_im, rgb_fine_), dim=-1)
-        depth_pred = torch.cat((depth_pred, ret["outputs_fine"]["depth"].detach().cpu()), dim=-1)
-        depth_im = img_HWC2CHW(colorize(depth_pred, cmap_name="jet"))
+        depth_pred = torch.cat((depth_pred, colorize(ret["outputs_fine"]["depth"].detach().cpu(), cmap_name="jet")), dim=1)
+        depth_im = img_HWC2CHW(depth_pred)
 
     rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
     filename = os.path.join(out_folder, prefix[:-1] + "_{:03d}.png".format(global_step))
