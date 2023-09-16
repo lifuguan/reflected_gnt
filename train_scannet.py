@@ -256,7 +256,7 @@ def train(args):
                             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
                             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
                             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
-                            gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
+                            true_depth = tmp_ray_sampler.true_depth.reshape(H, W, 1)
 
                             psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric, que_iou_metric = log_view(
                                 indx,
@@ -265,7 +265,7 @@ def train(args):
                                 tmp_ray_sampler,
                                 projector,
                                 gt_img,
-                                gt_labels,
+                                true_depth,
                                 evaluator=[iou_criterion, semantic_criterion],
                                 render_stride=args.render_stride,
                                 prefix="val/",
@@ -320,7 +320,7 @@ def log_view(
     ray_sampler,
     projector,
     gt_img,
-    gt_labels,
+    gt_depth,
     evaluator,
     render_stride=1,
     prefix="",
