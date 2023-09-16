@@ -36,6 +36,8 @@ class ScannetTrainDataset(Dataset):
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
 
+        self.num_classes = args.num_classes
+        
         image_size = 320
         self.ratio = image_size / 1296
         self.h, self.w = int(self.ratio*972), int(image_size)
@@ -164,7 +166,7 @@ class ScannetTrainDataset(Dataset):
         # depth_range = torch.tensor([near_depth, far_depth])
         depth_range = torch.tensor([0.1, 10.0])
 
-        src_rgbs = []
+        src_rgbs, src_labels = [], []
         src_cameras = []
         for id in id_feat:
             src_rgb = imageio.imread(rgb_files[id]).astype(np.float32) / 255.0
@@ -173,10 +175,23 @@ class ScannetTrainDataset(Dataset):
                     src_rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
             pose = np.loadtxt(pose_files[id]).reshape(4, 4)
 
+            src_label_img = Image.open(label_files[id])
+            src_label = np.asarray(src_label_img, dtype=np.int32)
+            src_label = np.ascontiguousarray(src_label)
+            src_label = cv2.resize(src_label, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+            src_label = src_label.astype(np.int32)
+            src_label = self.scan2nyu[src_label]
+            src_label = self.label_mapping(src_label)
+
             if self.rectify_inplane_rotation:
-                pose, src_rgb = rectify_inplane_rotation(pose.reshape(4, 4), render_pose, src_rgb)
+                pose, src_rgb, src_label = rectify_inplane_rotation(pose.reshape(4, 4), render_pose, src_rgb, src_label)
+            
+            one_hot_src_label = np.zeros((src_label.shape[0], src_label.shape[1], self.num_classes + 1))
+            for i in range(self.num_classes + 1):
+                one_hot_src_label[:,:,i] = (src_label == i)
 
             src_rgbs.append(src_rgb)
+            src_labels.append(one_hot_src_label)
             intrinsics = np.loadtxt(intrinsics_files[id]).reshape([4, 4])
             intrinsics[:2, :] *= self.ratio
             img_size = src_rgb.shape[:2]
@@ -187,6 +202,7 @@ class ScannetTrainDataset(Dataset):
             all_poses.append(pose)
 
         src_rgbs = np.stack(src_rgbs)
+        src_labels = np.stack(src_labels)
         src_cameras = np.stack(src_cameras)
 
         return {
@@ -196,6 +212,7 @@ class ScannetTrainDataset(Dataset):
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[id_render],
             "src_rgbs": torch.from_numpy(src_rgbs),
+            "src_labels": torch.from_numpy(src_labels),
             "src_cameras": torch.from_numpy(src_cameras),
             "depth_range": depth_range,
         }
@@ -208,6 +225,8 @@ class ScannetValDataset(Dataset):
         self.is_train = is_train
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
+
+        self.num_classes = args.num_classes
 
         image_size = 320
         self.ratio = image_size / 1296
@@ -333,19 +352,33 @@ class ScannetValDataset(Dataset):
         # depth_range = torch.tensor([near_depth, far_depth])
         depth_range = torch.tensor([0.1, 10.0])
 
-        src_rgbs = []
+        src_rgbs, src_labels = [], []
         src_cameras = []
         for id in id_feat:
             src_rgb = imageio.imread(rgb_files[id]).astype(np.float32) / 255.0
             if self.w != 1296:
                 src_rgb = cv2.resize(downsample_gaussian_blur(
                     src_rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
+                
+            src_label_img = Image.open(label_files[que_idx])
+            src_label = np.asarray(src_label_img, dtype=np.int32)
+            src_label = np.ascontiguousarray(src_label)
+            src_label = cv2.resize(src_label, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+            src_label = src_label.astype(np.int32)
+            src_label = self.scan2nyu[src_label]
+            src_label = self.label_mapping(src_label)
+
             pose = np.loadtxt(pose_files[id]).reshape(4, 4)
 
             if self.rectify_inplane_rotation:
-                pose, src_rgb = rectify_inplane_rotation(pose.reshape(4, 4), render_pose, src_rgb)
+                pose, src_rgb, src_label = rectify_inplane_rotation(pose.reshape(4, 4), render_pose, src_rgb, src_label)
+
+            one_hot_src_label = np.zeros((src_label.shape[0], src_label.shape[1], self.num_classes + 1))
+            for i in range(self.num_classes + 1):
+                one_hot_src_label[:,:,i] = (src_label == i)
 
             src_rgbs.append(src_rgb)
+            src_labels.append(one_hot_src_label)
             intrinsics = np.loadtxt(intrinsics_files[id]).reshape([4, 4])
             intrinsics[:2, :] *= self.ratio
             img_size = src_rgb.shape[:2]
@@ -356,6 +389,7 @@ class ScannetValDataset(Dataset):
             all_poses.append(pose)
 
         src_rgbs = np.stack(src_rgbs)
+        src_labels = np.stack(src_labels)
         src_cameras = np.stack(src_cameras)
 
         return {
@@ -365,6 +399,7 @@ class ScannetValDataset(Dataset):
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[que_idx],
             "src_rgbs": torch.from_numpy(src_rgbs),
+            "src_labels": torch.from_numpy(src_labels),
             "src_cameras": torch.from_numpy(src_cameras),
             "depth_range": depth_range,
         }

@@ -17,7 +17,7 @@ from gnt.ibrnet import IBRNetModel
 
 from gnt.sample_ray import RaySamplerSingleImage
 from utils import img_HWC2CHW, img2psnr, colorize, img2psnr, lpips, ssim
-from gnt.loss import RenderLoss, DepthLoss, SemanticLoss, IoU
+from gnt.loss import RenderLoss, SemanticConsistencyLoss, SemanticLoss, IoU
 import config
 import torch.distributed as dist
 from gnt.projection import Projector
@@ -141,7 +141,7 @@ def train(args):
 
     # Create criterion
     render_criterion = RenderLoss(args)
-    depth_criterion = DepthLoss(args)
+    sc_criterion = SemanticConsistencyLoss(args)
     semantic_criterion = SemanticLoss(args)
     iou_criterion = IoU(args)
     scalars_to_log = {}
@@ -180,7 +180,7 @@ def train(args):
                 projector=projector,
                 featmaps=ref_coarse_feats,
                 ref_deep_semantics=ref_deep_semantics.detach(), # reference encoder的语义输出
-                # ref_deep_semantics=ref_deep_semantics, # reference encoder的语义输出
+                ref_true_labels=ray_batch['src_labels'].squeeze(0),
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
                 N_importance=args.N_importance,
@@ -198,13 +198,14 @@ def train(args):
             ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
             ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
 
-            ray_batch['labels'] = train_data['labels'].to(device)
 
             # compute loss
+
+            ray_batch['labels'] = train_data['labels'].to(device)
+            sc_loss = sc_criterion(ret, ray_batch, selected_inds)
             render_loss = render_criterion(ret, ray_batch)
-            depth_loss = depth_criterion(ret, ray_batch)
             semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale + depth_loss['train/depth-loss']
+            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale + sc_loss['train/sc-loss']
 
             model.optimizer.zero_grad()
             loss.backward()
@@ -213,7 +214,7 @@ def train(args):
 
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
-            scalars_to_log["train/depth-loss"] = depth_loss['train/depth-loss'].item()
+            scalars_to_log["train/sc-loss"] = sc_loss['train/sc-loss'].item()
             scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
             scalars_to_log["train/distill-loss"] = loss_distill.item()
             scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]

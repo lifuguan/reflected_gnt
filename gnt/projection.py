@@ -81,7 +81,7 @@ class Projector:
         ray_diff = ray_diff.reshape((num_views,) + original_shape + (4,))
         return ray_diff
 
-    def compute(self, xyz, query_camera, train_imgs, train_cameras, featmaps, deep_semantics):
+    def compute(self, xyz, query_camera, train_imgs, train_cameras, featmaps, deep_semantics, ref_true_labels):
         """
         :param xyz: [n_rays, n_samples, 3]
         :param query_camera: [1, 34], 34 = img_size(2) + intrinsics(16) + extrinsics(16)
@@ -129,6 +129,10 @@ class Projector:
         deep_sem_sampled = F.grid_sample(deep_semantics, normalized_pixel_locations, align_corners=True)
         deep_sem_sampled = deep_sem_sampled.permute(2, 3, 0, 1)  # [n_rays, n_samples, n_views, d]
 
+        # deep semantic feature sampling
+        ref_labels_sampled = F.grid_sample(ref_true_labels.float(), normalized_pixel_locations, align_corners=True)
+        ref_labels_sampled = ref_labels_sampled.permute(2, 3, 0, 1)  # [n_rays, n_samples, n_views, d]
+
         # mask
         inbound = self.inbound(pixel_locations, h, w)
         ray_diff = self.compute_angle(xyz, query_camera, train_cameras)
@@ -136,4 +140,4 @@ class Projector:
         mask = (
             (inbound * mask_in_front).float().permute(1, 2, 0)[..., None]
         )  # [n_rays, n_samples, n_views, 1]
-        return rgb_feat_sampled, deep_sem_sampled, ray_diff, mask
+        return rgb_feat_sampled, deep_sem_sampled, ref_labels_sampled, ray_diff, mask

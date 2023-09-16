@@ -57,14 +57,14 @@ def quaternion_matrix(quaternion):
     )
 
 
-def rectify_inplane_rotation(src_pose, tar_pose, src_img, th=40):
+def rectify_inplane_rotation(src_pose, tar_pose, src_img, src_label, th=40):
     relative = np.linalg.inv(tar_pose).dot(src_pose)
     relative_rot = relative[:3, :3]
     r = R.from_matrix(relative_rot)
     euler = r.as_euler("zxy", degrees=True)
     euler_z = euler[0]
     if np.abs(euler_z) < th:
-        return src_pose, src_img
+        return src_pose, src_img, src_label
 
     R_rectify = R.from_euler("z", -euler_z, degrees=True).as_matrix()
     src_R_rectified = src_pose[:3, :3].dot(R_rectify)
@@ -75,11 +75,13 @@ def rectify_inplane_rotation(src_pose, tar_pose, src_img, th=40):
     center = ((w - 1.0) / 2.0, (h - 1.0) / 2.0)
     M = cv2.getRotationMatrix2D(center, -euler_z, 1)
     src_img = np.clip((255 * src_img).astype(np.uint8), a_max=255, a_min=0)
-    rotated = cv2.warpAffine(
+    src_rotated_img = cv2.warpAffine(
         src_img, M, (w, h), borderValue=(255, 255, 255), flags=cv2.INTER_LANCZOS4
     )
-    rotated = rotated.astype(np.float32) / 255.0
-    return out_pose, rotated
+
+    src_rotated_label = cv2.warpAffine(src_label, M, (w, h), flags=cv2.INTER_LANCZOS4)
+    src_rotated_img = src_rotated_img.astype(np.float32) / 255.0
+    return out_pose, src_rotated_img, src_rotated_label
 
 
 def random_crop(rgb, camera, src_rgbs, src_cameras, size=(400, 600), center=None):

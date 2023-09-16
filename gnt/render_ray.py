@@ -198,6 +198,7 @@ def render_rays(
     ref_deep_semantics,
     projector,
     N_samples,
+    ref_true_labels=None,
     inv_uniform=False,
     N_importance=0,
     det=False,
@@ -236,29 +237,28 @@ def render_rays(
     )
 
     N_rays, N_samples = pts.shape[:2]
-    rgb_feat, deep_sem_feat, ray_diff, mask = projector.compute(
+    rgb_feat, deep_sem_feat, ref_proj_labels, ray_diff, mask = projector.compute(
         pts,
         ray_batch["camera"],
         ray_batch["src_rgbs"],
         ray_batch["src_cameras"],
         featmaps=featmaps,
         deep_semantics=ref_deep_semantics,
+        ref_true_labels=ref_true_labels,
     )  # [N_rays, N_samples, N_views, x]
     # TODO: include pixel mask in ray transformer
     
     # [N_rays, N_samples], should at least have 2 observations
     pixel_mask = (mask[..., 0].sum(dim=2) > 1)  
     if model_type == 'gnt':
-        out = model.net_coarse(rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d)
-        rgb_out, feats_out, _ = out
-        if ret_alpha:
-            rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
-            depth_map = torch.sum(weights * z_vals, dim=-1)
-        else:
-            weights = None; depth_map = None
+        out = model.net_coarse(rgb_feat, deep_sem_feat, ref_proj_labels, ray_diff, mask, pts, ray_d)
+        rgb_out, feats_out, agg_gt_labels = out
+
+        rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
+        depth_map = torch.sum(weights * z_vals, dim=-1)
 
         ret["outputs_coarse"] = {
-            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out}
+            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out, "agg_gt_labels": agg_gt_labels}
     else:
         raw_coarse,_,_ = model.net_coarse(rgb_feat, ray_diff, mask)
         ret["outputs_coarse"] = raw2outputs(raw_coarse, z_vals, pixel_mask,
@@ -272,13 +272,14 @@ def render_rays(
             inv_uniform, N_importance, det, N_samples, ray_batch, weights, z_vals
         )
 
-        rgb_feat_sampled, deep_sem_feat_sampled, ray_diff, mask = projector.compute(
+        rgb_feat_sampled, deep_sem_feat_sampled, ref_proj_labels_sampled, ray_diff, mask = projector.compute(
             pts,
             ray_batch["camera"],
             ray_batch["src_rgbs"],
             ray_batch["src_cameras"],
             featmaps=featmaps,
             deep_semantics=ref_deep_semantics,
+            ref_true_labels=ref_true_labels,
         )
 
         # TODO: Include pixel mask in ray transformer
@@ -287,14 +288,14 @@ def render_rays(
         # )  # [N_rays, N_samples]. should at least have 2 observations
 
         if single_net:
-            out = model.net_coarse(rgb_feat_sampled, deep_sem_feat_sampled, ray_diff, mask, pts, ray_d)
+            out = model.net_coarse(rgb_feat_sampled, deep_sem_feat_sampled, ref_proj_labels_sampled, ray_diff, mask, pts, ray_d)
         else:
             out = model.net_fine(rgb_feat_sampled, ray_diff, mask, pts, ray_d)
-        rgb_out, feats_out, _ = out
+        rgb_out, feats_out, agg_gt_labels = out
 
         rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
         depth_map = torch.sum(weights * z_vals, dim=-1)
         ret["outputs_fine"] = {
-            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out}
+            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out, "agg_gt_labels": agg_gt_labels}
 
     return ret

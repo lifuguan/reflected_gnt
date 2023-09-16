@@ -107,6 +107,30 @@ class SemanticLoss(Loss):
         #     loss += ref_loss * self.semantic_loss_scale
         return {'train/semantic-loss': loss}
 
+
+   
+class SemanticConsistencyLoss(SemanticLoss):
+    def __init__(self, args):
+        super(SemanticConsistencyLoss, self).__init__(args)
+        self.sc_loss_scale = args.sc_loss_scale
+    
+    def __call__(self, data_pred, data_gt, selected_inds, **kwargs):
+        num_classes = data_pred['outputs_coarse']['agg_gt_labels'].shape[-1]
+        
+        pixel_label_gt = data_gt['labels'].permute(1,2,0).reshape(-1,1)[selected_inds]
+        pixel_label_nr = data_pred['outputs_coarse']['agg_gt_labels']
+        coarse_loss = self.compute_semantic_loss(pixel_label_nr, pixel_label_gt, num_classes)
+        
+        if 'outputs_fine' in data_pred:
+            pixel_label_nr_fine = data_pred['outputs_fine']['agg_gt_labels']
+            fine_loss = self.compute_semantic_loss(pixel_label_nr_fine, pixel_label_gt, num_classes)
+        else:
+            fine_loss = torch.zeros_like(coarse_loss)
+        
+        loss = (coarse_loss + fine_loss) * self.sc_loss_scale
+
+        return {'train/sc-loss': loss}
+
 class DepthLoss(nn.Module):
 
     def __init__(self, args):

@@ -40,9 +40,10 @@ class RaySamplerSingleImage(object):
         self.render_stride = render_stride
         self.rgb = data["rgb"] if "rgb" in data.keys() else None
         self.labels = data["labels"] if "labels" in data.keys() else None
+        self.src_labels = data["src_labels"] if "src_labels" in data.keys() else None
         self.camera = data["camera"]
         self.rgb_path = data["rgb_path"]
-        self.true_depth = data["true_depth"]
+        self.true_depth = data["true_depth"] if "true_depth" in data.keys() else None
         self.depth_range = data["depth_range"]
         self.device = device
         if self.camera.shape[-1] == 34:
