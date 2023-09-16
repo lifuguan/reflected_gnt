@@ -237,13 +237,6 @@ def train(args):
                     print(logstr)
                     print("each iter time {:.05f} seconds".format(dt))
 
-                    if args.expname != 'debug':
-                        wandb.log({
-                        'images': wandb.Image(train_data["rgb"][0].cpu().numpy()),
-                        'masks': {
-                            'true': wandb.Image(sem_imgs[0].float().cpu().numpy()),
-                            'pred': wandb.Image(sem_imgs[1].float().cpu().numpy()),
-                        }})
                     del ray_batch
 
                 if args.expname != 'debug':
@@ -374,6 +367,7 @@ def log_view(
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
     if args.render_stride != 1:
         gt_img = gt_img[::render_stride, ::render_stride]
+        gt_depth = gt_depth[::render_stride, ::render_stride]
         average_im = average_im[::render_stride, ::render_stride]
 
     rgb_gt = img_HWC2CHW(gt_img)
@@ -389,7 +383,9 @@ def log_view(
     rgb_im[:, : rgb_pred.shape[-2], 2 * w_max : 2 * w_max + rgb_pred.shape[-1]] = rgb_pred
     if "depth" in ret["outputs_coarse"].keys():
         depth_pred = ret["outputs_coarse"]["depth"].detach().cpu()
-        depth_im = img_HWC2CHW(colorize(depth_pred, cmap_name="jet"))
+        depth_pred = torch.cat((colorize(gt_depth.detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
+
+        depth_im = img_HWC2CHW(depth_pred)
     else:
         depth_im = None
     
@@ -398,8 +394,8 @@ def log_view(
         rgb_fine_ = torch.zeros(3, h_max, w_max)
         rgb_fine_[:, : rgb_fine.shape[-2], : rgb_fine.shape[-1]] = rgb_fine
         rgb_im = torch.cat((rgb_im, rgb_fine_), dim=-1)
-        depth_pred = torch.cat((depth_pred, ret["outputs_fine"]["depth"].detach().cpu()), dim=-1)
-        depth_im = img_HWC2CHW(colorize(depth_pred, cmap_name="jet"))
+        depth_pred = torch.cat((depth_pred, colorize(ret["outputs_fine"]["depth"].detach().cpu(), cmap_name="jet")), dim=1)
+        depth_im = img_HWC2CHW(depth_pred)
 
     rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
     filename = os.path.join(out_folder, prefix[:-1] + "_{:03d}.png".format(global_step))
@@ -408,8 +404,13 @@ def log_view(
         depth_im = depth_im.permute(1, 2, 0).detach().cpu().numpy()
         filename = os.path.join(out_folder, prefix[:-1] + "depth_{:03d}.png".format(global_step))
         imageio.imwrite(filename, depth_im)
-
     
+    try:
+        if args.expname != 'debug':
+            wandb.log({'val-depth_img': wandb.Image(depth_im)})
+    except:
+        pass
+
     # write scalar
     pred_rgb = (
         ret["outputs_fine"]["rgb"]

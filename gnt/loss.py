@@ -110,14 +110,13 @@ class SemanticLoss(Loss):
 class DepthLoss(nn.Module):
 
     def __init__(self, args):
+        super(DepthLoss, self).__init__()
         self.depth_loss_scale = args.depth_loss_scale
 
         self.depth_correct_thresh = 0.02
-        self.depth_loss_type = 'l2'
+        self.depth_loss_type = 'smooth_l1'
         self.depth_loss_l1_beta = 0.05
-        if self.depth_loss_type == 'smooth_l1':
-            self.loss_op = nn.SmoothL1Loss(
-                reduction='none', beta=self.args['depth_loss_l1_beta'])
+        self.loss_op = nn.SmoothL1Loss(reduction='none', beta=self.depth_loss_l1_beta)
 
     def __call__(self, data_pr, data_gt, **kwargs):
         depth_pr = data_pr['outputs_coarse']['depth']  # pn
