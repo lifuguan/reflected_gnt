@@ -51,6 +51,7 @@ def render_single_image(
             model,
             featmaps,
             ref_deep_semantics = deep_semantics, # reference encoder的语义输出
+            ref_true_labels=chunk['src_labels'].squeeze(0),
             projector=projector,
             N_samples=N_samples,
             inv_uniform=inv_uniform,
