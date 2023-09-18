@@ -81,7 +81,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--N_rand", "300", "--expname", "distill_gpu_4", "--no_load_opt", "--ckpt_path", "./out/gnt_best.pth", "--val_set_list","configs/scannetv2_test_split.txt", "--N_rand", "500"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--N_rand", "300", "--expname", "gnt_smeantic_0831_4", "--no_load_opt", "--ckpt_path", "./out/gnt_smeantic_0831_4/model_stage_2.pth", "--val_set_list","configs/scannetv2_test_split.txt", "--N_rand", "500"]
         },
         {
             "name": "train: resunet",

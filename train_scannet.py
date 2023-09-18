@@ -246,7 +246,7 @@ def train(args):
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
 
-                if (global_step+1) % args.save_interval == 0:
+                if (global_step+1) % 2 == 0:
                     print("Evaluating...")
                     all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores, all_que_iou_scores = [],[],[],[],[]
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
@@ -383,7 +383,7 @@ def log_view(
     rgb_im[:, : rgb_pred.shape[-2], 2 * w_max : 2 * w_max + rgb_pred.shape[-1]] = rgb_pred
     if "depth" in ret["outputs_coarse"].keys():
         depth_pred = ret["outputs_coarse"]["depth"].detach().cpu()
-        depth_pred = torch.cat((colorize(gt_depth.detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
+        depth_pred = torch.cat((colorize(gt_depth.squeeze(-1).detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
 
         depth_im = img_HWC2CHW(depth_pred)
     else:
