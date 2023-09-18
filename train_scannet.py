@@ -254,7 +254,7 @@ def train(args):
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
 
-                if (global_step+1) % 2 == 0:
+                if (global_step+1) % args.save_interval == 0:
                     print("Evaluating...")
                     all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores, all_que_iou_scores = [],[],[],[],[]
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
