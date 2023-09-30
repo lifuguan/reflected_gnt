@@ -17,7 +17,7 @@ import torch.distributed as dist
 from gnt.projection import Projector
 import imageio
 
-from gnt.loss import SemanticLoss, IoU
+from gnt.loss import SemanticLoss, IoU, DepthLoss
 import logging
 
 
@@ -84,18 +84,19 @@ def eval(args):
 
     iou_criterion = IoU(args)
     semantic_criterion = SemanticLoss(args)
+    depth_criterion = DepthLoss(args)
 
-    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores = [],[],[],[]
+    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores, all_depth_scores = [],[],[],[],[]
     for val_scene, val_name in zip(val_set_lists, val_set_names):
         indx = 0
-        psnr_scores,lpips_scores,ssim_scores, iou_scores = [],[],[],[]
+        psnr_scores,lpips_scores,ssim_scores, iou_scores, depth_scores = [],[],[],[],[]
         for val_data in val_scene:
             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
             gt_depth = val_data['true_depth'][0]
 
-            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric = log_view(
+            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric, depth_metric = log_view(
                 indx,
                 args,
                 model,
@@ -103,7 +104,7 @@ def eval(args):
                 projector,
                 gt_img,
                 gt_depth,
-                evaluator=[iou_criterion, semantic_criterion],
+                evaluator=[iou_criterion, semantic_criterion, depth_criterion],
                 render_stride=args.render_stride,
                 prefix="val/" if args.run_val else "train/",
                 out_folder=out_folder,
@@ -115,38 +116,40 @@ def eval(args):
             lpips_scores.append(lpips_curr_img)
             ssim_scores.append(ssim_curr_img)
             iou_scores.append(iou_metric)
+            depth_scores.append(depth_metric)
             torch.cuda.empty_cache()
             indx += 1
-        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Depth: {}".format(
             val_name, 
             np.mean(psnr_scores),
             np.mean(lpips_scores),
             np.mean(ssim_scores),
-            np.mean(iou_scores)))
+            np.mean(iou_scores),
+            np.mean(depth_scores)))
         all_psnr_scores.append(np.mean(psnr_scores))
         all_lpips_scores.append(np.mean(lpips_scores))
         all_ssim_scores.append(np.mean(ssim_scores))
         all_iou_scores.append(np.mean(iou_scores))    
-        logging.critical("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+        all_depth_scores.append(np.mean(depth_scores))
+        logging.critical("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Depth: {}".format(
             val_name, 
             np.mean(psnr_scores),
             np.mean(lpips_scores),
             np.mean(ssim_scores),
-            np.mean(iou_scores)))
-        all_psnr_scores.append(np.mean(psnr_scores))
-        all_lpips_scores.append(np.mean(lpips_scores))
-        all_ssim_scores.append(np.mean(ssim_scores))
-        all_iou_scores.append(np.mean(iou_scores))    
-    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+            np.mean(iou_scores),
+            np.mean(depth_scores))) 
+    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Depth: {}".format(
         np.mean(all_psnr_scores),
         np.mean(all_lpips_scores),
         np.mean(all_ssim_scores),
-        np.mean(all_iou_scores)))
-    logging.critical("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+        np.mean(all_iou_scores),
+        np.mean(all_depth_scores)))
+    logging.critical("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Depth:{}".format(
         np.mean(all_psnr_scores),
         np.mean(all_lpips_scores),
         np.mean(all_ssim_scores),
-        np.mean(all_iou_scores)))
+        np.mean(all_iou_scores),
+        np.mean(all_depth_scores)))
 
 
 @torch.no_grad()
@@ -200,6 +203,8 @@ def log_view(
         gt_img = gt_img[::render_stride, ::render_stride]
         gt_depth = gt_depth[::render_stride, ::render_stride]
         average_im = average_im[::render_stride, ::render_stride]
+    ray_batch['true_depth'] = gt_depth
+    ray_batch['depth_range'] = ray_batch['depth_range'].to(gt_depth.device)
 
     rgb_gt = img_HWC2CHW(gt_img)
     average_im = img_HWC2CHW(average_im)
@@ -214,7 +219,7 @@ def log_view(
     rgb_im[:, : rgb_pred.shape[-2], 2 * w_max : 2 * w_max + rgb_pred.shape[-1]] = rgb_pred
     if "depth" in ret["outputs_coarse"].keys():
         depth_pred = ret["outputs_coarse"]["depth"].detach().cpu()
-        depth_pred = torch.cat((colorize(gt_depth.detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
+        depth_pred = torch.cat((colorize(gt_depth.squeeze(-1).detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
 
         depth_im = img_HWC2CHW(depth_pred)
     else:
@@ -248,13 +253,15 @@ def log_view(
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
     iou_metric = evaluator[0](ret, ray_batch, global_step)
     sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step, val_name, vis=True)
+    depth_metric = evaluator[2](ret, ray_batch)
 
     print(prefix + "psnr_image: ", psnr_curr_img)
     print(prefix + "lpips_image: ", lpips_curr_img)
     print(prefix + "ssim_image: ", ssim_curr_img)
     print(prefix + "iou: ", iou_metric['miou'].item())
+    print(prefix + "depth_loss: ", depth_metric['train/depth-loss'].item())
     model.switch_to_train()
-    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item()
+    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item(), depth_metric['train/depth-loss'].item()
 
 
 

@@ -129,6 +129,7 @@ class RaySamplerSingleImage(object):
             "ray_d": self.rays_d.cuda(),
             "depth_range": self.depth_range.cuda(),
             "camera": self.camera.cuda(),
+            "true_depth": self.true_depth.cuda() if self.true_depth is not None else None,
             "rgb": self.rgb.cuda() if self.rgb is not None else None,
             "src_rgbs": self.src_rgbs.cuda() if self.src_rgbs is not None else None,
             "labels": self.labels.cuda() if self.labels is not None else None,

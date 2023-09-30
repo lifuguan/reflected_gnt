@@ -4,13 +4,19 @@ rootdir = ./
 render_stride = 2
 distributed = False
 
+### PRETRAIN Model
+no_load_opt
+no_load_scheduler
+ckpt_path = ./out/distill_depth_gpu_8/model_219999.pth
+
 ## dataset
 train_dataset = train_scannet
 dataset_weights = [1]
 eval_dataset = val_scannet
+val_set_list = configs/scannetv2_test_split.txt
 
 ### TRAINING
-N_rand = 400
+N_rand = 450
 lrate_feature = 0.005
 lrate_semantic = 0.005
 lrate_gnt = 0.00001
