@@ -211,7 +211,6 @@ def train(args):
 
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
-            scalars_to_log["train/depth-loss"] = depth_loss['train/depth-loss'].item()
             scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
             scalars_to_log["train/distill-loss"] = loss_distill.item()
             scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]
