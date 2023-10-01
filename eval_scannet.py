@@ -132,11 +132,7 @@ def eval(args):
             np.mean(psnr_scores),
             np.mean(lpips_scores),
             np.mean(ssim_scores),
-            np.mean(iou_scores)))
-        all_psnr_scores.append(np.mean(psnr_scores))
-        all_lpips_scores.append(np.mean(lpips_scores))
-        all_ssim_scores.append(np.mean(ssim_scores))
-        all_iou_scores.append(np.mean(iou_scores))    
+            np.mean(iou_scores)))  
     print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
         np.mean(all_psnr_scores),
         np.mean(all_lpips_scores),
