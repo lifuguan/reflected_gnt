@@ -3,6 +3,7 @@ import torch.nn as nn
 import os
 from gnt.transformer_network import GNT
 from gnt.feature_network import ResUNet, resnet50
+from gnt.sem_feature_network import resnet50
 from gnt.fpn import FPN
 from gnt.semantic_branch import NeRFSemSegFPNHead
 import torchvision.models as models
@@ -47,14 +48,7 @@ class GNTModel(object):
             single_net=self.args.single_net,
         ).to(device)
 
-        # create semantic branch extraction network
-        if args.backbone_pretrain:
-            self.sem_feature_net = resnet50().to(device)
-            self.feature_fpn = FPN(in_channels=[256, 512, 1024, 2048], out_channels=128, concat_out=True).to(device)
-        else:
-            self.sem_feature_net = None
-            self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
-
+        self.feature_fpn = FPN(in_channels=[64,64,128,256], out_channels=128, concat_out=True).to(device)
         self.sem_seg_head = NeRFSemSegFPNHead(args).to(device)
 
         # optimizer and learning rate scheduler
@@ -193,8 +187,7 @@ class GNTModel(object):
         if load_scheduler:
             self.scheduler.load_state_dict(to_load["scheduler"])
 
-        self.net_coarse.load_state_dict(to_load["net_coarse"], strict=True)
-        
+        self.net_coarse.load_state_dict(to_load["net_coarse"], strict=False)
         if self.feature_net is not None and "feature_net" in to_load.keys():
             self.feature_net.load_state_dict(to_load["feature_net"], strict=True)
 
@@ -209,6 +202,11 @@ class GNTModel(object):
 
         if self.net_fine is not None and "net_fine" in to_load.keys():
             self.net_fine.load_state_dict(to_load["net_fine"], strict=True)
+            self.net_fine = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net_fine)
+
+        self.net_coarse = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.net_coarse)
+        self.feature_net = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.feature_net)
+        self.feature_fpn = torch.nn.SyncBatchNorm.convert_sync_batchnorm(self.feature_fpn)
 
     def load_from_ckpt(
         self, out_folder, load_opt=True, load_scheduler=True, force_latest_ckpt=False
@@ -267,7 +265,23 @@ class OnlySemanticModel(nn.Module):
         sem_out = self.sem_seg_head(que_deep_semantics, None, None)
         return sem_out
 
+class SSLSemModel(nn.Module):
+    def __init__(self, args) -> None:
+        super(SSLSemModel, self).__init__()
+        # create feature extraction network
+        self.feature_net = resnet50()
 
+        # self.feature_net = models.resnet50()
+
+        self.feature_fpn = FPN(in_channels=[256, 512, 1024, 2048], out_channels=128, concat_out=True)
+        self.sem_seg_head = NeRFSemSegFPNHead(args)
+
+    def forward(self, rgb) -> torch.Tensor:
+        que_deep_semantics = self.feature_net(rgb)
+        que_deep_semantics = self.feature_fpn(que_deep_semantics)
+        sem_out = self.sem_seg_head(que_deep_semantics, None, None)
+        return sem_out
+    
 class SSLSemModel(nn.Module):
     def __init__(self, args) -> None:
         super(SSLSemModel, self).__init__()

@@ -42,6 +42,7 @@ class RaySamplerSingleImage(object):
         self.labels = data["labels"] if "labels" in data.keys() else None
         self.camera = data["camera"]
         self.rgb_path = data["rgb_path"]
+        self.true_depth = data["true_depth"]
         self.depth_range = data["depth_range"]
         self.device = device
         if self.camera.shape[-1] == 34:
@@ -67,6 +68,11 @@ class RaySamplerSingleImage(object):
                     self.labels.permute(0, 3, 1, 2), scale_factor=resize_factor
                 ).permute(0, 2, 3, 1)
 
+            if self.true_depth is not None:
+                self.true_depth = F.interpolate(
+                    self.true_depth.permute(0, 3, 1, 2), scale_factor=resize_factor
+                ).permute(0, 2, 3, 1)
+
         self.rays_o, self.rays_d = self.get_rays_single_image(
             self.H, self.W, self.intrinsics, self.c2w_mat
         )
@@ -74,6 +80,9 @@ class RaySamplerSingleImage(object):
             self.rgb = self.rgb.reshape(-1, 3)
         if self.labels is not None:
             self.labels = self.labels.reshape(-1, 1)
+        if self.true_depth is not None:
+            self.true_depth = self.true_depth.reshape(-1, 1)
+
 
         if "src_rgbs" in data.keys():
             self.src_rgbs = data["src_rgbs"]
@@ -172,12 +181,18 @@ class RaySamplerSingleImage(object):
         else:
             labels = None
 
+        if self.true_depth is not None:
+            true_depth = self.true_depth[select_inds]
+        else:
+            true_depth = None
+
         ret = {
             "ray_o": rays_o.cuda(),
             "ray_d": rays_d.cuda(),
             "camera": self.camera.cuda(),
             "depth_range": self.depth_range.cuda(),
             "rgb": rgb.cuda() if rgb is not None else None,
+            "true_depth": true_depth.cuda() if true_depth is not None else None,
             "src_rgbs": self.src_rgbs.cuda() if self.src_rgbs is not None else None,
             "labels": labels.cuda() if labels is not None else None,
             "src_labels": self.src_labels.cuda() if self.src_labels is not None else None,

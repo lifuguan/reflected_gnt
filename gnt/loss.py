@@ -55,7 +55,7 @@ class SemanticLoss(Loss):
         self.expname = args.expname
         self.label_smoothing = args.label_smoothing
 
-    def plot_semantic_results(self, data_pred, data_gt, step):
+    def plot_semantic_results(self, data_pred, data_gt, step, val_name=None, vis=False):
         h, w = data_pred['sems'].shape[1:3]
         batch_size = data_pred['sems'].shape[0]
         self.color_map.to(data_gt['rgb'].device)
@@ -74,7 +74,8 @@ class SemanticLoss(Loss):
 
         model_name = self.expname
         Path(f'out/vis/{model_name}').mkdir(exist_ok=True, parents=True)
-        # imsave(f'out/vis/{model_name}/step-{step}-sem.png', concat_images_list(*imgs))
+        if vis is True:
+            imsave(f'out/{model_name}/{val_name}/{step}.png', concat_images_list(*imgs))
         return imgs
     
     def compute_semantic_loss(self, label_pr, label_gt):
@@ -112,7 +113,9 @@ class SemanticLoss(Loss):
 
 class DepthLoss(nn.Module):
 
-    def __init__(self, cfg):
+    def __init__(self, args):
+        self.depth_loss_scale = args.depth_loss_scale
+
         self.depth_correct_thresh = 0.02
         self.depth_loss_type = 'l2'
         self.depth_loss_l1_beta = 0.05
@@ -120,18 +123,12 @@ class DepthLoss(nn.Module):
             self.loss_op = nn.SmoothL1Loss(
                 reduction='none', beta=self.args['depth_loss_l1_beta'])
 
-    def __call__(self, data_pr, data_gt, step, **kwargs):
-        if 'true_depth' not in data_gt['ref_imgs_info']:
-            return {'loss_depth': torch.zeros([1], dtype=torch.float32, device=data_pr['pixel_colors_nr'].device)}
-        coords = data_pr['depth_coords']  # rfn,pn,2
-        depth_pr = data_pr['depth_mean']  # rfn,pn
-        depth_maps = data_gt['ref_imgs_info']['true_depth']  # rfn,1,h,w
-        rfn, _, h, w = depth_maps.shape
-        depth_gt = interpolate_feats(
-            depth_maps, coords, h, w, padding_mode='border', align_corners=True)[..., 0]   # rfn,pn
+    def __call__(self, data_pr, data_gt, **kwargs):
+        depth_pr = data_pr['outputs_coarse']['depth']  # pn
+        depth_gt = data_gt['true_depth']  # pn
 
         # transform to inverse depth coordinate
-        depth_range = data_gt['ref_imgs_info']['depth_range']  # rfn,2
+        depth_range = data_gt['depth_range']  # rfn,2
         near, far = -1/depth_range[:, 0:1], -1/depth_range[:, 1:2]  # rfn,1
 
         def process(depth):
@@ -147,25 +144,16 @@ class DepthLoss(nn.Module):
             if self.depth_loss_type == 'l2':
                 loss = (depth_gt - depth_pr)**2
             elif self.depth_loss_type == 'smooth_l1':
-                loss = self.loss_op(depth_gt, depth_pr)
+                loss = self.loss_op(depth_gt, depth_pr) 
 
-            if data_gt['scene_name'].startswith('gso'):
-                # rfn,1,h,w
-                depth_maps_noise = data_gt['ref_imgs_info']['depth']
-                depth_aug = interpolate_feats(
-                    depth_maps_noise, coords, h, w, padding_mode='border', align_corners=True)[..., 0]  # rfn,pn
-                depth_aug = process(depth_aug)
-                mask = (torch.abs(depth_aug-depth_gt) <
-                        self.depth_correct_thresh).float()
-                loss = torch.sum(loss * mask, 1) / (torch.sum(mask, 1) + 1e-4)
-            else:
-                loss = torch.mean(loss, 1)
+            losses = torch.mean(loss, 1)
+            loss = torch.mean(loss)
             return loss
 
-        outputs = {'loss_depth': compute_loss(depth_pr)}
-        if 'depth_mean_fine' in data_pr:
-            outputs['loss_depth_fine'] = compute_loss(
-                data_pr['depth_mean_fine'])
+        outputs = {'train/depth-loss': compute_loss(depth_pr)}
+        if 'outputs_fine' in data_pr:
+            outputs['train/depth-loss'] += compute_loss(data_pr['outputs_fine']['depth'])
+        outputs['train/depth-loss'] = outputs['train/depth-loss'] * self.depth_loss_scale
         return outputs
     
 # From https://github.com/Harry-Zhi/semantic_nerf/blob/a0113bb08dc6499187c7c48c3f784c2764b8abf1/SSR/training/training_utils.py
@@ -176,21 +164,7 @@ class IoU(Loss):
         self.num_classes = args.num_classes
         self.ignore_label = args.ignore_label
 
-
-    def __call__(self, data_pred, data_gt, step, **kwargs):
-        true_labels = data_gt['labels'].reshape([-1]).long().detach().cpu().numpy()
-        if 'outputs_fine' in data_pred:
-            predicted_labels = data_pred['outputs_fine']['sems'].argmax(
-                dim=-1).reshape([-1]).long().detach().cpu().numpy()
-        else:
-            predicted_labels = data_pred['outputs_coarse']['sems'].argmax(
-                dim=-1).reshape([-1]).long().detach().cpu().numpy()
-
-        if self.ignore_label != -1:
-            valid_pix_ids = true_labels != self.ignore_label
-        else:
-            valid_pix_ids = np.ones_like(true_labels, dtype=bool)
-
+    def iou_calc(self, predicted_labels, true_labels, valid_pix_ids):
         predicted_labels = predicted_labels[valid_pix_ids]
         true_labels = true_labels[valid_pix_ids]
 
@@ -215,11 +189,38 @@ class IoU(Loss):
             miou = 0.
             total_accuracy = 0.
             class_average_accuracy = 0.
-        output = {
-            'miou': torch.tensor([miou], dtype=torch.float32),
-            'total_accuracy': torch.tensor([total_accuracy], dtype=torch.float32),
-            'class_average_accuracy': torch.tensor([class_average_accuracy], dtype=torch.float32)
-        }
+        return miou, total_accuracy, class_average_accuracy
+    def __call__(self, data_pred, data_gt, step, **kwargs):
+        true_labels = data_gt['labels'].reshape([-1]).long().detach().cpu().numpy()
+        if 'outputs_fine' in data_pred:
+            predicted_labels = data_pred['outputs_fine']['sems'].argmax(
+                dim=-1).reshape([-1]).long().detach().cpu().numpy()
+        else:
+            predicted_labels = data_pred['outputs_coarse']['sems'].argmax(
+                dim=-1).reshape([-1]).long().detach().cpu().numpy()
+
+        if self.ignore_label != -1:
+            valid_pix_ids = true_labels != self.ignore_label
+        else:
+            valid_pix_ids = np.ones_like(true_labels, dtype=bool)
+
+        miou, total_accuracy, class_average_accuracy = self.iou_calc(predicted_labels, true_labels, valid_pix_ids)
+        
+        if 'que_sems' in data_pred.keys():
+            predicted_labels = data_pred['que_sems'].argmax(dim=-1).reshape([-1]).long().detach().cpu().numpy()
+            que_miou, _, _ = self.iou_calc(predicted_labels, true_labels, valid_pix_ids)
+            output = {
+                'miou': torch.tensor([miou], dtype=torch.float32),
+                'que_miou': torch.tensor([que_miou], dtype=torch.float32),
+                'total_accuracy': torch.tensor([total_accuracy], dtype=torch.float32),
+                'class_average_accuracy': torch.tensor([class_average_accuracy], dtype=torch.float32)
+            }
+        else:
+            output = {
+                'miou': torch.tensor([miou], dtype=torch.float32),
+                'total_accuracy': torch.tensor([total_accuracy], dtype=torch.float32),
+                'class_average_accuracy': torch.tensor([class_average_accuracy], dtype=torch.float32)
+            }
         return output
 
 

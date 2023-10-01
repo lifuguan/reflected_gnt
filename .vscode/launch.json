@@ -59,13 +59,17 @@
             "args": ["--o", "data"]
         },
         {
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "1"
+            },
             "name": "train: semantic",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet_dino.txt", "--expname", "debug"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_smeantic_0831_4/model_stage_2.pth", "--no_load_opt", "--no_load_scheduler"]
+            // "args": ["--config", "configs/gnt_scannet.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
         },
         {
             "name": "eval: semantic",
@@ -74,16 +78,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet_de2.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/all_transport.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
-        },
-        {
-            "name": "finetune: semantic",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/ft_scannet.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet_ft.txt", "--expname", "debug"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "gnt_scannet_0815_selected_inds", "--no_load_opt", "--ckpt_path", "./oout/gnt_scannet_0815_selected_inds/model_199999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
             "name": "train: resunet",
@@ -94,7 +89,6 @@
             "justMyCode": false,
             "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
             // "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
-
         },
         {
             "name": "train: semantic_model",

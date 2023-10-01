@@ -26,14 +26,6 @@ from sklearn.metrics import confusion_matrix
 
 from gnt.data_loaders.semantic_dataset import RandomRendererDataset, OrderRendererDataset
 
-from gnt.mask_former_modeling import MaskFormer
-from gnt.semantic_config import add_mask_former_config, add_semantic_fpn_config
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.structures import Instances
-from detectron2.config import get_cfg
-from detectron2.projects.deeplab import add_deeplab_config
-from detectron2.modeling import build_model
-
 def nanmean(data, **args):
     return np.ma.masked_array(data, np.isnan(data)).mean(**args)
 
@@ -272,10 +264,7 @@ def train_model(
     elif args.model == 'SSLSemModel':
         semantic_model = SSLSemModel(args)
     else:
-        cfg = semantic_branch_setup(yaml.load("configs/mask_former/maskformer_r50.yaml", Loader=yaml.FullLoader))
-        semantic_model = build_model(cfg)
-        DetectionCheckpointer(semantic_model, save_dir='out/debug').resume_or_load(
-            cfg.MODEL.WEIGHTS, resume=False)
+        pass
     
     if load:
         state_dict = torch.load(load, map_location=device)
@@ -304,7 +293,7 @@ def train_model(
     iters_loss = 0
 
     if args.expname != 'debug':
-        experiment = wandb.init(entity="lifuguan",project="General-NeRF",name=args.expname)
+        experiment = wandb.init(entity="vio-research",project="Semantic-NeRF",name=args.expname)
     
     while global_step < iters: 
         for train_data in train_loader: 
@@ -376,7 +365,7 @@ def train_model(
                 print('loss: {}   miou: {}'.format(loss.item(), iou_metric['miou'].item()))
                 if args.expname != 'debug':
                     experiment.log({'train loss': loss.item(), 'train/iou':iou_metric['miou'].item()})
-            if (global_step+1) % 2000 == 0:
+            if (global_step+1) % 10000 == 0:
                 if args.batch_size == 1:
                     ray_batch = {"rgb": images, "sems": masks_pred, "labels": true_masks}
                     _ = plotter.plot_semantic_results(ray_batch, ray_batch, global_step)
@@ -402,7 +391,7 @@ def train_model(
 
 def get_args():
     parser = argparse.ArgumentParser(description='Train the ResUNet on images and target masks')
-    parser.add_argument('--iters', type=int, default=50000, help='Number of iters')
+    parser.add_argument('--iters', type=int, default=100000, help='Number of iters')
     parser.add_argument('--batch-size', '-b', dest='batch_size', metavar='B', type=int, default=1, help='Batch size')
     parser.add_argument('--learning-rate', '-l', metavar='LR', type=float, default=1e-5,
                         help='Learning rate', dest='lr')
@@ -427,6 +416,21 @@ def get_args():
         "--fine_feat_dim", type=int, default=32, help="2D feature dimension for fine level"
     )
     parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_test_split.txt")
+
+    parser.add_argument('--selected_inds', action="store_true")
+
+    parser.add_argument(
+        "--lrate_decay_factor",
+        type=float,
+        default=0.6,
+        help="decay learning rate by a factor every specified number of steps",
+    )
+    parser.add_argument(
+        "--lrate_decay_steps",
+        type=int,
+        default=40000,
+        help="decay learning rate by a factor every specified number of steps",
+    )
 
     parser.add_argument('--selected_inds', action="store_true")
 
@@ -496,6 +500,5 @@ if __name__ == '__main__':
         amp=args.amp,
         wandb_name=args.name
     )
-
 
 

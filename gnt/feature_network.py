@@ -12,19 +12,10 @@ def class_for_name(module_name, class_name):
     return getattr(m, class_name)
 
 
-# def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
-#     """3x3 convolution with padding"""
-#     return nn.Conv2d(
-#         in_planes,
-#         out_planes,
-#         kernel_size=3,
-#         stride=stride,
-#         padding=dilation,
-#         groups=groups,
-#         bias=False,
-#         dilation=dilation,
-#         padding_mode="reflect",
-#     )
+def conv3x3(in_planes, out_planes, stride=1, groups=1, dilation=1):
+    """3x3 convolution with padding"""
+    return nn.Conv2d(in_planes, out_planes,kernel_size=3, stride=stride,
+        padding_mode="reflect", padding=dilation, groups=groups, bias=False, dilation=dilation)
 
 
 # def conv1x1(in_planes, out_planes, stride=1):
@@ -306,7 +297,7 @@ class ResUNet(nn.Module):
         x2 = self.layer2(x1)
         x3 = self.layer3(x2)
 
-        x = self.upconv3(x3)
+        x = self.upconv3(x3.detach())
         x = self.skipconnect(x2, x)
         x = self.iconv3(x)
 

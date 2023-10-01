@@ -16,9 +16,8 @@ from gnt.ibrnet import IBRNetModel
 
 
 from gnt.sample_ray import RaySamplerSingleImage
-from gnt.criterion import SemanticCriterion
 from utils import img_HWC2CHW, img2psnr, colorize, img2psnr, lpips, ssim
-from gnt.loss import RenderLoss, SemanticLoss, IoU
+from gnt.loss import RenderLoss, DepthLoss, SemanticLoss, IoU
 import config
 import torch.distributed as dist
 from gnt.projection import Projector
@@ -193,7 +192,8 @@ def train(args):
                 model=model,
                 projector=projector,
                 featmaps=ref_coarse_feats,
-                ref_deep_semantics=ref_deep_semantics, # reference encoder的语义输出
+                ref_deep_semantics=ref_deep_semantics.detach(), # reference encoder的语义输出
+                # ref_deep_semantics=ref_deep_semantics, # reference encoder的语义输出
                 N_samples=args.N_samples,
                 inv_uniform=args.inv_uniform,
                 N_importance=args.N_importance,
@@ -207,11 +207,12 @@ def train(args):
 
             if args.selected_inds is True:
                 selected_inds = ray_batch["selected_inds"]
-                corase_sem_out = model.sem_seg_head(que_deep_semantics, ret['outputs_coarse']['feats_out'].detach(), selected_inds).permute(0,2,1)    # 34
+                corase_sem_out, loss_distill = model.sem_seg_head(que_deep_semantics, ret['outputs_fine']['feats_out'].detach(), selected_inds).permute(0,2,1)    # 34
                 ret['outputs_coarse']['sems'], ret['outputs_fine']['sems'] = corase_sem_out, corase_sem_out
             else:
                 corase_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
                 ray_batch['labels'] = train_data['labels'].to(device)
+            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
                 ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
                 ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
             
@@ -223,7 +224,7 @@ def train(args):
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
             semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss']
+            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale
 
             model.optimizer.zero_grad()
             loss.backward()
@@ -232,7 +233,9 @@ def train(args):
 
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
+            scalars_to_log["train/depth-loss"] = depth_loss['train/depth-loss'].item()
             scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
+            scalars_to_log["train/distill-loss"] = loss_distill.item()
             scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]
             # end of core optimization loop
             dt = time.time() - time0
@@ -275,17 +278,17 @@ def train(args):
 
                 if (global_step+1) % args.save_interval == 0:
                     print("Evaluating...")
-                    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores = [],[],[],[]
+                    all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores, all_que_iou_scores = [],[],[],[],[]
                     for val_scene, val_name in zip(val_set_lists, val_set_names):
                         indx = 0
-                        psnr_scores,lpips_scores,ssim_scores, iou_scores = [],[],[],[]
+                        psnr_scores,lpips_scores,ssim_scores, iou_scores, que_iou_scores = [],[],[],[],[]
                         for val_data in val_scene:
                             tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
                             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
                             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
                             gt_labels = tmp_ray_sampler.labels.reshape(H, W, 1)
 
-                            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric = log_view(
+                            psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric, que_iou_metric = log_view(
                                 indx,
                                 args,
                                 model,
@@ -304,29 +307,35 @@ def train(args):
                             lpips_scores.append(lpips_curr_img)
                             ssim_scores.append(ssim_curr_img)
                             iou_scores.append(iou_metric)
+                            que_iou_scores.append(que_iou_metric)
                             torch.cuda.empty_cache()
                             indx += 1
-                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+                        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Query IoU: {}".format(
                             val_name, 
                             np.mean(psnr_scores),
                             np.mean(lpips_scores),
                             np.mean(ssim_scores),
-                            np.mean(iou_scores)))
+                            np.mean(iou_scores),
+                            np.mean(que_iou_scores)))
                         all_psnr_scores.append(np.mean(psnr_scores))
                         all_lpips_scores.append(np.mean(lpips_scores))
                         all_ssim_scores.append(np.mean(ssim_scores))
                         all_iou_scores.append(np.mean(iou_scores)) 
+                        all_que_iou_scores.append(np.mean(que_iou_scores)) 
                         wandb.log({
                             "val-PSNR/{}".format(val_name): np.mean(psnr_scores), 
-                            "val-IoU/{}".format(val_name): np.mean(iou_scores)})
-                    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}".format(
+                            "val-IoU/{}".format(val_name): np.mean(iou_scores),
+                            "val-Query-IoU/{}".format(val_name): np.mean(que_iou_scores)})
+                    print("Overall PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Query IoU: {}".format(
                         np.mean(all_psnr_scores),
                         np.mean(all_lpips_scores),
                         np.mean(all_ssim_scores),
-                        np.mean(all_iou_scores)))
+                        np.mean(all_iou_scores),
+                        np.mean(all_que_iou_scores)))
                     wandb.log({
                         "val-PSNR/Average": np.mean(all_psnr_scores), 
-                        "val-IoU/Average": np.mean(all_iou_scores)})
+                        "val-IoU/Average": np.mean(all_iou_scores),
+                        "val-Query-IoU/Average": np.mean(all_que_iou_scores)})
                  
             global_step += 1
             if global_step > model.start_step + args.n_iters + 1:
@@ -361,6 +370,7 @@ def log_view(
             # reference feature extractor
             ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
             ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
+        device = ref_deep_semantics.device
         else:
             # reference feature extractor
             ref_coarse_feats, _, _ = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
@@ -387,8 +397,11 @@ def log_view(
             single_net=single_net,
         )
         
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device).to(ref_coarse_feats.device), None, None).permute(0,2,3,1)
+        
+        ret['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
@@ -440,14 +453,16 @@ def log_view(
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
     iou_metric = evaluator[0](ret, ray_batch, global_step)
-    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step)
+    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step, None, False)
 
     print(prefix + "psnr_image: ", psnr_curr_img)
     print(prefix + "lpips_image: ", lpips_curr_img)
     print(prefix + "ssim_image: ", ssim_curr_img)
     print(prefix + "iou: ", iou_metric['miou'].item())
+    if 'que_miou' in iou_metric.keys():
+        print(prefix + "que_miou: ", iou_metric['que_miou'].item())
     model.switch_to_train()
-    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item()
+    return psnr_curr_img, lpips_curr_img, ssim_curr_img, iou_metric['miou'].item(), iou_metric['que_miou'].item()
 
 
 if __name__ == "__main__":
@@ -481,8 +496,8 @@ if __name__ == "__main__":
     if args.rank == 0 and args.expname != 'debug':
         wandb.init(
             # set the wandb project where this run will be logged
-            entity="lifuguan",
-            project="General-NeRF",
+            entity="vio-research",
+            project="Semantic-NeRF",
             name=args.expname,
             
             # track hyperparameters and run metadata

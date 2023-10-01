@@ -44,21 +44,20 @@ class NeRFSemSegFPNHead(nn.Module):
         
         self.predictor = Conv2d(conv_dims, num_classes + 1, kernel_size=1, stride=1, padding=0)
 
-        if args.unbounded is True:
-            self.softmax = torch.nn.Softmax(dim=1)
-
-
-
     def forward(self, deep_feats, out_feats, select_inds):
         h, w = deep_feats.shape[-2:]
         #######   replace feature map           #######
         if select_inds is not None:
-            batch=1
-            ratio = 240 * 320 // (deep_feats.shape[-2] * deep_feats.shape[-1])
             deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
-            re_select_inds = torch.tensor([select_ind // ratio for select_ind in select_inds])
-            deep_feats[re_select_inds] = out_feats
-            chunks = torch.chunk(deep_feats, 4, dim=1)
+
+            re_select_inds = []
+            for select_ind in select_inds:
+                re_select_inds.append(self.original_index_to_downsampled_index(select_ind))
+            
+            # distill loss
+            device = deep_feats.device
+            novel_feats = deep_feats[re_select_inds].detach()
+            loss_distillation = F.cosine_embedding_loss(novel_feats, out_feats, torch.ones((len(re_select_inds))).to(device), reduction='mean')
         else:
             batch = deep_feats.shape[0]
             deep_feats = deep_feats.reshape(batch, deep_feats.shape[1], -1).permute(0,2,1)
@@ -81,4 +80,8 @@ class NeRFSemSegFPNHead(nn.Module):
         if self.unbounded is True:
             return self.softmax(out)
         else:
-            return out 
+        if select_inds is not None:
+            return out, loss_distillation
+        else:
+                return out
+
