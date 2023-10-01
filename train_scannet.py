@@ -213,13 +213,8 @@ def train(args):
                 corase_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
                 ray_batch['labels'] = train_data['labels'].to(device)
             del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
-                ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
-                ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
-            
-            # ref_sem_out = model.sem_seg_head(ref_deep_semantics, None, None)   # 对reference view也进行语义分割训练
-            # ret['reference_sems'] = ref_sem_out.permute(0,2,3,1)
-
-            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
+            ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
+            ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
 
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
@@ -370,7 +365,7 @@ def log_view(
             # reference feature extractor
             ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
             ref_deep_semantics = model.feature_fpn(ref_deep_semantics)
-        device = ref_deep_semantics.device
+            device = ref_deep_semantics.device
         else:
             # reference feature extractor
             ref_coarse_feats, _, _ = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
