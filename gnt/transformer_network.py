@@ -290,8 +290,9 @@ class GNT(nn.Module):
             periodic_fns=[torch.sin, torch.cos],
         )
         self.semantic_adaptor = nn.Sequential(
-                    nn.Linear(512, 512),
-                    nn.ReLU())
+                    nn.Linear(512, 256),
+                    nn.ReLU(),
+                    nn.Linear(256, 512),)
     def forward(self, rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d):
         # compute positional embeddings
         viewdirs = ray_d
@@ -339,6 +340,7 @@ class GNT(nn.Module):
         outputs = self.rgb_fc(h.mean(dim=1))
 
         sem_feat = torch.stack(deep_sem_out, dim=0).sum(dim=0).mean(dim=1)
-        sem_feat = self.semantic_adaptor(sem_feat)
+        sem_feat = self.semantic_adaptor(sem_feat) + sem_feat
+        
         return torch.cat([outputs, attn], dim=1), sem_feat, None
                 
