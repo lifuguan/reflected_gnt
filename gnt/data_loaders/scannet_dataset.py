@@ -156,9 +156,9 @@ class ScannetTrainDataset(Dataset):
 
         all_poses = [render_pose]
         # get depth range
-        poses = render_pose[:, :-2].reshape([-1, 3, 5]).transpose([1, 2, 0])
-        bds = render_pose[:, -2:].transpose([1, 0])
-        bds = np.moveaxis(bds, -1, 0).astype(np.float32)
+        # poses = render_pose[:, :-2].reshape([-1, 3, 5]).transpose([1, 2, 0])
+        # bds = render_pose[:, -2:].transpose([1, 0])
+        # bds = np.moveaxis(bds, -1, 0).astype(np.float32)
         # far_depth = origin_depth + max_radius
         # depth_range = torch.tensor([near_depth, far_depth])
         depth_range = torch.tensor([0.1, 10.0])
