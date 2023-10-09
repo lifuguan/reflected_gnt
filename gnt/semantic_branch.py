@@ -53,9 +53,13 @@ class NeRFSemSegFPNHead(nn.Module):
         
         return downsampled_index
     
-    def forward(self, deep_feats, out_feats, select_inds):
+    def forward(self, deep_feats, agg_sem_feats, select_inds):
+
         #######   replace feature map           #######
         if select_inds is not None:
+            agg_feats_3d = agg_sem_feats['feats_out_3d']
+            agg_feats_2d = agg_sem_feats['feats_out']
+            depth_weights = agg_sem_feats['weights']
             deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
 
             re_select_inds = []
@@ -65,7 +69,19 @@ class NeRFSemSegFPNHead(nn.Module):
             # distill loss
             device = deep_feats.device
             novel_feats = deep_feats[re_select_inds].detach()
-            loss_distillation = F.cosine_embedding_loss(novel_feats, out_feats, torch.ones((len(re_select_inds))).to(device), reduction='mean')
+            loss_distillation = F.cosine_embedding_loss(novel_feats, agg_feats_2d, torch.ones((len(re_select_inds))).to(device), reduction='mean')
+
+            # max_weights_inds = depth_weights.argsort(dim=-1)[:,:5]
+            max_weights_inds = depth_weights.argmax(dim=-1).unsqueeze(-1)
+            max_weights_inds[max_weights_inds == 63] -= 2
+            max_weights_inds[max_weights_inds == 62] -= 1
+            max_weights_inds[max_weights_inds == 1] += 1
+            max_weights_inds[max_weights_inds == 0] += 2
+            max_weights_inds = torch.cat([max_weights_inds-1, max_weights_inds-2, max_weights_inds, max_weights_inds+1,max_weights_inds+2], dim=1)
+            similarity_targets = torch.zeros_like(depth_weights).to(device)
+            similarity_targets[np.arange(512)[:, np.newaxis], max_weights_inds]=1
+
+            loss_depth_guided_sem = F.cosine_embedding_loss(novel_feats.unsqueeze(1).repeat(1, 64, 1).reshape(-1, 512), agg_feats_3d.reshape(-1, 512), similarity_targets.reshape(-1), reduction='mean')
         else:
             deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
 
@@ -82,6 +98,6 @@ class NeRFSemSegFPNHead(nn.Module):
         out = self.predictor(x)
         out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)
         if select_inds is not None:
-            return out, loss_distillation
+            return out, loss_distillation, loss_depth_guided_sem
         else:
             return out

@@ -45,6 +45,26 @@ class RenderLoss(nn.Module):
             # results = {"train/fine-psnr-training-batch": mse2psnr(results["train/fine-loss"])}
         return results
     
+
+class DepthGuidedSemLoss(nn.Module):
+    
+    def __init__(self, args):
+        self.dgs_loss_scale = args.dgs_loss_scale
+        self.N_samples = args.N_samples
+        
+    def __call__(self, data_pred, data_gt, **kwargs):
+        rgb_gt = data_gt["rgb"]  # 1,rn,3
+        rgb_coarse = data_pred["outputs_coarse"]["rgb"]  # rn,3
+
+        results = {"train/rgb-loss": self.compute_rgb_loss(rgb_coarse, rgb_gt)}
+        # results = {"train/coarse-psnr-training-batch": mse2psnr(results["train/coarse-loss"])}
+
+        if data_pred["outputs_fine"] is not None:
+            rgb_fine = data_pred["outputs_fine"]["rgb"]  # 1,rn,3
+            results["train/rgb-loss"] += self.compute_rgb_loss(rgb_fine, rgb_gt)
+            # results = {"train/fine-psnr-training-batch": mse2psnr(results["train/fine-loss"])}
+        return results
+    
 class SemanticLoss(Loss):
     def __init__(self, args):
         super().__init__(['loss_semantic'])
@@ -139,10 +159,9 @@ class DepthLoss(nn.Module):
             if self.depth_loss_type == 'l2':
                 loss = (depth_gt - depth_pr)**2
             elif self.depth_loss_type == 'smooth_l1':
-                loss = self.loss_op(depth_gt, depth_pr) 
+                loss = self.loss_op(depth_pr, depth_gt.squeeze(-1)) 
 
-            losses = torch.mean(loss, 1)
-            return torch.mean(losses)
+            return torch.mean(loss)
 
         outputs = {'train/depth-loss': compute_loss(depth_pr)}
         if 'outputs_fine' in data_pr:

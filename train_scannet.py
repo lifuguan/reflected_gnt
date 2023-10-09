@@ -193,8 +193,8 @@ def train(args):
             )
 
             selected_inds = ray_batch["selected_inds"]
-            corase_sem_out, loss_distill = model.sem_seg_head(que_deep_semantics, ret['outputs_fine']['feats_out'], selected_inds)
-            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
+            corase_sem_out, loss_distill, loss_depth_guided_sem = model.sem_seg_head(que_deep_semantics, ret['outputs_fine'], selected_inds)
+            del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out'], ret['outputs_coarse']['feats_out_3d'], ret['outputs_fine']['feats_out_3d']
             ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
             ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
 
@@ -202,9 +202,9 @@ def train(args):
 
             # compute loss
             render_loss = render_criterion(ret, ray_batch)
-            depth_loss = depth_criterion(ret, ray_batch)
+            # depth_loss = depth_criterion(ret, ray_batch)
             semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale + depth_loss['train/depth-loss']
+            loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale + loss_depth_guided_sem * args.distill_loss_scale# + depth_loss['train/depth-loss']
 
             model.optimizer.zero_grad()
             loss.backward()
@@ -213,9 +213,10 @@ def train(args):
 
             scalars_to_log["loss"] = loss.item()
             scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
-            scalars_to_log["train/depth-loss"] = depth_loss['train/depth-loss'].item()
+            # scalars_to_log["train/depth-loss"] = depth_loss['train/depth-loss'].item()
             scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
             scalars_to_log["train/distill-loss"] = loss_distill.item()
+            scalars_to_log["train/dgs-loss"] = loss_depth_guided_sem.item()
             scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]
             # end of core optimization loop
             dt = time.time() - time0
@@ -246,7 +247,7 @@ def train(args):
                     fpath = os.path.join(out_folder, "model_{:06d}.pth".format(global_step))
                     model.save_model(fpath)
 
-                if (global_step+1) % 2 == 0:
+                if (global_step+1) % args.save_interval == 0:
                     print("Evaluating...")
                     all_psnr_scores,all_lpips_scores,all_ssim_scores, all_iou_scores, all_que_iou_scores = [],[],[],[],[]
                     for val_scene, val_name in zip(val_set_lists, val_set_names):

@@ -25,6 +25,10 @@ from gnt.projection import Projector
 import imageio
 import wandb 
 
+import warnings
+
+# 忽略特定警告类别
+warnings.filterwarnings("ignore", category=RuntimeWarning)
 
 def setup_for_distributed(is_master):
     """
@@ -191,8 +195,10 @@ def train(args):
                 )
 
                 selected_inds = ray_batch["selected_inds"]
-                corase_sem_out, loss_distill = model.sem_seg_head(que_deep_semantics, ret['outputs_fine']['feats_out'], selected_inds)
-                del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out']
+                corase_sem_out, loss_distill, loss_depth_guided_sem = model.sem_seg_head(que_deep_semantics, ret['outputs_fine'], selected_inds)
+
+                del ret['outputs_coarse']['feats_out'], ret['outputs_fine']['feats_out'], ret['outputs_coarse']['feats_out_3d'], ret['outputs_fine']['feats_out_3d']
+
                 ret['outputs_coarse']['sems'] = corase_sem_out.permute(0,2,3,1)
                 ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
 
@@ -202,7 +208,7 @@ def train(args):
                 render_loss = render_criterion(ret, ray_batch)
                 depth_loss = depth_criterion(ret, ray_batch)
                 semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-                loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + loss_distill * args.distill_loss_scale + depth_loss['train/depth-loss']
+                loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + depth_loss['train/depth-loss'] + loss_distill * args.distill_loss_scale + loss_depth_guided_sem * args.distill_loss_scale
 
                 model.optimizer.zero_grad()
                 loss.backward()
@@ -247,7 +253,7 @@ def train(args):
                     if args.expname != 'debug':
                         wandb.log(scalars_to_log)
 
-                    if (global_step+1) % args.save_interval == 0:
+                    if (global_step+1) % args.save_interval == 0 or global_step == 2:
                     # if (global_step+1) % 100 == 0:
                         print("Evaluating...")
                         indx = 0
@@ -306,7 +312,7 @@ def train(args):
         wandb.log(all_iou_scores) # 输出所有的最优iou
         values = all_iou_scores.values()
         mean_iou = sum(values) / len(values)
-        print("Average IoU result: {}".format(mean_iou))
+        print("Average IoU result: {}, {}, {}".format(sum(values), len(values), mean_iou))
         wandb.log({"Average IoU":mean_iou})
   
 @torch.no_grad()

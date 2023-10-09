@@ -81,27 +81,20 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--N_rand", "300", "--expname", "distill_depth_gpu_8", "--no_load_opt", "--ckpt_path", "./out/distill_depth_gpu_8/model_219999.pth", "--val_set_list","configs/scannetv2_test_split.txt", "--N_rand", "500"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--chunk_size", "500", "--expname", "distill_dgs_gpu_8", "--no_load_opt", "--ckpt_path", "./out/distill_dgs_gpu_8/model_219999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
-            "name": "train: resunet",
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "7"
+            },
+            "name": "ft: semantic",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/train_resunet.py",
+            "program": "${workspaceFolder}/ft_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
-            // "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
+            "args": ["--config", "configs/gnt_scannet_ft.txt", "--expname", "distill_dgs_gpu_8", "--no_load_opt", "--ckpt_path", "./out/distill_dgs_gpu_8/model_219999.pth"]
         },
-        {
-            "name": "train: semantic_model",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/train_resunet.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": ["--expname", "semantic_model(Random10)"]
-            // "args": ["--expname", "debug"]
-        },
+
     ]
 }

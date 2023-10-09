@@ -76,16 +76,12 @@ def sample_along_camera_ray(ray_o, ray_d, depth_range, N_samples, inv_uniform=Fa
     if inv_uniform:
         start = 1.0 / near_depth  # [N_rays,]
         step = (1.0 / far_depth - start) / (N_samples - 1)
-        inv_z_vals = torch.stack(
-            [start + i * step for i in range(N_samples)], dim=1
-        )  # [N_rays, N_samples]
+        inv_z_vals = torch.stack([start + i * step for i in range(N_samples)], dim=1)  # [N_rays, N_samples]
         z_vals = 1.0 / inv_z_vals
     else:
         start = near_depth
         step = (far_depth - near_depth) / (N_samples - 1)
-        z_vals = torch.stack(
-            [start + i * step for i in range(N_samples)], dim=1
-        )  # [N_rays, N_samples]
+        z_vals = torch.stack([start + i * step for i in range(N_samples)], dim=1)  # [N_rays, N_samples]
 
     if not det:
         # get intervals between samples
@@ -250,7 +246,7 @@ def render_rays(
     pixel_mask = (mask[..., 0].sum(dim=2) > 1)  
     if model_type == 'gnt':
         out = model.net_coarse(rgb_feat, deep_sem_feat, ray_diff, mask, pts, ray_d)
-        rgb_out, feats_out, _ = out
+        rgb_out, feats_out, feats_out_3d = out
         if ret_alpha:
             rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
             depth_map = torch.sum(weights * z_vals, dim=-1)
@@ -258,7 +254,7 @@ def render_rays(
             weights = None; depth_map = None
 
         ret["outputs_coarse"] = {
-            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out}
+            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out, "feats_out_3d": feats_out_3d}
     else:
         raw_coarse,_,_ = model.net_coarse(rgb_feat, ray_diff, mask)
         ret["outputs_coarse"] = raw2outputs(raw_coarse, z_vals, pixel_mask,
@@ -290,11 +286,11 @@ def render_rays(
             out = model.net_coarse(rgb_feat_sampled, deep_sem_feat_sampled, ray_diff, mask, pts, ray_d)
         else:
             out = model.net_fine(rgb_feat_sampled, ray_diff, mask, pts, ray_d)
-        rgb_out, feats_out, _ = out
+        rgb_out, feats_out, feats_out_3d = out
 
         rgb_out, weights = rgb_out[:, 0:3], rgb_out[:, 3:]
         depth_map = torch.sum(weights * z_vals, dim=-1)
         ret["outputs_fine"] = {
-            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out}
+            "rgb": rgb_out, "weights": weights, "depth": depth_map, "feats_out": feats_out, "feats_out_3d": feats_out_3d}
 
     return ret
