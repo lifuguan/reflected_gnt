@@ -131,6 +131,7 @@ def train(args):
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
         scene_set_names.append(name.split('/')[1])
+        os.makedirs(out_folder + '/' + name.split('/')[1], exist_ok=True)
 
         print(f'{name} val set len {len(val_loader)}')
 
@@ -203,6 +204,7 @@ def train(args):
                 ret['outputs_fine']['sems'] = corase_sem_out.permute(0,2,3,1)
 
                 ray_batch['labels'] = train_data['labels'].to(device)
+                ray_batch['full_rgb'] = train_data['rgb'].to(device)
 
                 # compute loss
                 render_loss = render_criterion(ret, ray_batch)
@@ -245,8 +247,8 @@ def train(args):
                             wandb.log({
                             'images': wandb.Image(train_data["rgb"][0].cpu().numpy()),
                             'masks': {
-                                'true': wandb.Image(sem_imgs[0].float().cpu().numpy()),
-                                'pred': wandb.Image(sem_imgs[1].float().cpu().numpy()),
+                                'true': wandb.Image(sem_imgs[1].float().cpu().numpy()),
+                                'pred': wandb.Image(sem_imgs[2].float().cpu().numpy()),
                             }})
                         del ray_batch
 
@@ -278,6 +280,7 @@ def train(args):
                                 out_folder=out_folder,
                                 ret_alpha=args.N_importance > 0,
                                 single_net=args.single_net,
+                                val_name = scene_name
                             )
                             psnr_scores.append(psnr_curr_img)
                             lpips_scores.append(lpips_curr_img)
@@ -330,6 +333,7 @@ def log_view(
     out_folder="",
     ret_alpha=False,
     single_net=True,
+    val_name = None,
 ):
     model.switch_to_eval()
     with torch.no_grad():
@@ -361,7 +365,7 @@ def log_view(
         )
         
         ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
         
         ret['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
         
@@ -401,13 +405,16 @@ def log_view(
         depth_im = img_HWC2CHW(depth_pred)
 
     rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
-    filename = os.path.join(out_folder, prefix[:-1] + "_{:03d}.png".format(global_step))
+    filename = os.path.join(out_folder, val_name, "rgb_{:03d}.png".format(global_step))
     imageio.imwrite(filename, rgb_im)
     if depth_im is not None:
         depth_im = depth_im.permute(1, 2, 0).detach().cpu().numpy()
-        filename = os.path.join(out_folder, prefix[:-1] + "depth_{:03d}.png".format(global_step))
+        filename = os.path.join(out_folder, val_name, "depth_{:03d}.png".format(global_step))
         imageio.imwrite(filename, depth_im)
     
+
+
+
     try:
         if args.expname != 'debug':
             wandb.log({'val-depth_img': wandb.Image(depth_im)})
@@ -424,7 +431,9 @@ def log_view(
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
     iou_metric = evaluator[0](ret, ray_batch, global_step)
-    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_coarse"], ray_batch, global_step, None, False)
+    sem_imgs = evaluator[1].plot_semantic_results(ret["outputs_fine"], ray_batch, global_step, val_name, vis=True)
+    evaluator[1].plot_pca_features(ret, ray_batch, global_step, val_name, vis=True)
+
 
     print(prefix + "psnr_image: ", psnr_curr_img)
     print(prefix + "lpips_image: ", lpips_curr_img)

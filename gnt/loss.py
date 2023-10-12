@@ -7,6 +7,11 @@ from skimage.io import imsave
 from utils import concat_images_list
 import numpy as np
 
+from sklearn.decomposition import PCA
+import sklearn
+import time
+from PIL import Image
+import matplotlib.pyplot as plt
 
 def nanmean(data, **args):
     return np.ma.masked_array(data, np.isnan(data)).mean(**args)
@@ -74,6 +79,36 @@ class SemanticLoss(Loss):
         self.color_map = torch.tensor(args.semantic_color_map, dtype=torch.uint8)
         self.expname = args.expname
 
+    def plot_pca_features(self, data_pred, ray_batch, step, val_name=None, vis=False):
+        coarse_feats = data_pred['outputs_coarse']['feats_out'].unsqueeze(0).permute(0,3,1,2)
+        fine_feats = data_pred['outputs_fine']['feats_out'].unsqueeze(0).permute(0,3,1,2)
+        h, w = coarse_feats.shape[2:4]
+        def pca_calc(feats):
+            fmap = feats.cuda()
+            pca = sklearn.decomposition.PCA(3, random_state=80)
+            f_samples = fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1])[::3].cpu().numpy()
+            transformed = pca.fit_transform(f_samples)
+            feature_pca_mean = torch.tensor(f_samples.mean(0)).float().cuda()
+            feature_pca_components = torch.tensor(pca.components_).float().cuda()
+            q1, q99 = np.percentile(transformed, [1, 99])
+            feature_pca_postprocess_sub = q1
+            feature_pca_postprocess_div = (q99 - q1)
+            del f_samples
+
+            vis_feature = (fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1]) - feature_pca_mean[None, :]) @ feature_pca_components.T
+            vis_feature = (vis_feature - feature_pca_postprocess_sub) / feature_pca_postprocess_div
+            vis_feature = vis_feature.clamp(0.0, 1.0).float().reshape((fmap.shape[2], fmap.shape[3], 3)).cpu()
+            return (vis_feature.cpu().numpy() * 255).astype(np.uint8)
+
+        rgbs = ray_batch['rgb']  # 1,rn,3
+        rgbs = rgbs.reshape([h*2, w*2, 3]).detach() * 255
+        rgbs = rgbs.squeeze().cpu().numpy().astype(np.uint8)[::2, ::2]     
+        imgs = [rgbs, pca_calc(coarse_feats), pca_calc(fine_feats)]
+
+        model_name = self.expname
+        if vis is True:
+            imsave(f'out/{model_name}/{val_name}/pca_{step}.png', concat_images_list(*imgs))
+
     def plot_semantic_results(self, data_pred, data_gt, step, val_name=None, vis=False):
         h, w = data_pred['sems'].shape[1:3]
         batch_size = data_pred['sems'].shape[0]
@@ -89,12 +124,20 @@ class SemanticLoss(Loss):
             rgbs = self.color_map[rgbs]
             return rgbs
         
-        imgs = [get_img(data_gt, 'labels', 1), get_img(data_pred, 'sems', self.num_classes)]
+        def get_rgb(data_src, key, channel):
+            rgbs = data_src[key]  # 1,rn,3
+            rgbs = rgbs.reshape([h, w, channel]).detach() * 255
+            rgbs = rgbs.squeeze().cpu().numpy().astype(np.uint8)
+            return rgbs
+        
+        if 'full_rgb' not in data_gt.keys():
+            imgs = [get_rgb(data_gt, 'rgb', 3), get_img(data_gt, 'labels', 1), get_img(data_pred, 'sems', self.num_classes)]
+        else:
+            imgs = [get_rgb(data_gt, 'full_rgb', 3), get_img(data_gt, 'labels', 1), get_img(data_pred, 'sems', self.num_classes)]
 
         model_name = self.expname
-        Path(f'out/vis/{model_name}').mkdir(exist_ok=True, parents=True)
         if vis is True:
-            imsave(f'out/{model_name}/{val_name}/{step}.png', concat_images_list(*imgs))
+            imsave(f'out/{model_name}/{val_name}/seg_{step}.png', concat_images_list(*imgs))
         return imgs
     
     def compute_semantic_loss(self, label_pr, label_gt, num_classes):

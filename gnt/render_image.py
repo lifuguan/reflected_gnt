@@ -94,6 +94,11 @@ def render_single_image(
             feat_tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
                 (feat_strided.shape[0], feat_strided.shape[1], 512, -1)   # 256是深层语义的维度
             )
+            all_ret["outputs_coarse"][k] = feat_tmp.squeeze()    
+        elif k == "feats_out_3d" and all_ret["outputs_coarse"][k] is not None:
+            feat_tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
+                (feat_strided.shape[0], feat_strided.shape[1], 48, 512)   # 256是深层语义的维度
+            )
             all_ret["outputs_coarse"][k] = feat_tmp.squeeze()      
         else:      
             tmp = torch.cat(all_ret["outputs_coarse"][k], dim=0).reshape(
@@ -112,6 +117,11 @@ def render_single_image(
                     (feat_strided.shape[0], feat_strided.shape[1], 512, -1)   # 256是深层语义的维度
                 )
                 all_ret["outputs_fine"][k] = feat_tmp.squeeze() 
+            elif k == "feats_out_3d" and all_ret["outputs_fine"][k] is not None:
+                feat_tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
+                    (feat_strided.shape[0], feat_strided.shape[1], 64, 512)   # 256是深层语义的维度
+                )
+                all_ret["outputs_fine"][k] = feat_tmp.squeeze()     
             else:
                 tmp = torch.cat(all_ret["outputs_fine"][k], dim=0).reshape(
                     (rgb_strided.shape[0], rgb_strided.shape[1], -1)

@@ -93,7 +93,7 @@
             "program": "${workspaceFolder}/ft_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet_ft.txt", "--expname", "distill_dgs_gpu_8", "--no_load_opt", "--ckpt_path", "./out/distill_dgs_gpu_8/model_219999.pth"]
+            "args": ["--config", "configs/gnt_scannet_ft.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/distill_dgs_gpu_8/model_best.pth"]
         },
 
     ]
