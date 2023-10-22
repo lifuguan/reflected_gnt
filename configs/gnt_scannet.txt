@@ -36,3 +36,9 @@ save_interval = 20000
 ### SEMANTIC SETTING
 save_feature = True
 semantic_model = fpn
+
+###
+render_loss_scale = 0.25
+semantic_loss_scale = 0.75
+distill_loss_scale = 0.25
+depth_loss_scale = 0
