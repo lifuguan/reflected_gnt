@@ -7,6 +7,11 @@ from skimage.io import imsave
 from utils import concat_images_list
 import numpy as np
 
+from sklearn.decomposition import PCA
+import sklearn
+import time
+from PIL import Image
+import matplotlib.pyplot as plt
 
 def nanmean(data, **args):
     return np.ma.masked_array(data, np.isnan(data)).mean(**args)
@@ -45,6 +50,26 @@ class RenderLoss(nn.Module):
             # results = {"train/fine-psnr-training-batch": mse2psnr(results["train/fine-loss"])}
         return results
     
+
+class DepthGuidedSemLoss(nn.Module):
+    
+    def __init__(self, args):
+        self.dgs_loss_scale = args.dgs_loss_scale
+        self.N_samples = args.N_samples
+        
+    def __call__(self, data_pred, data_gt, **kwargs):
+        rgb_gt = data_gt["rgb"]  # 1,rn,3
+        rgb_coarse = data_pred["outputs_coarse"]["rgb"]  # rn,3
+
+        results = {"train/rgb-loss": self.compute_rgb_loss(rgb_coarse, rgb_gt)}
+        # results = {"train/coarse-psnr-training-batch": mse2psnr(results["train/coarse-loss"])}
+
+        if data_pred["outputs_fine"] is not None:
+            rgb_fine = data_pred["outputs_fine"]["rgb"]  # 1,rn,3
+            results["train/rgb-loss"] += self.compute_rgb_loss(rgb_fine, rgb_gt)
+            # results = {"train/fine-psnr-training-batch": mse2psnr(results["train/fine-loss"])}
+        return results
+    
 class SemanticLoss(Loss):
     def __init__(self, args):
         super().__init__(['loss_semantic'])
@@ -54,27 +79,78 @@ class SemanticLoss(Loss):
         self.color_map = torch.tensor(args.semantic_color_map, dtype=torch.uint8)
         self.expname = args.expname
 
+    def plot_pca_features(self, data_pred, ray_batch, step, val_name=None, vis=False):
+        coarse_feats = data_pred['outputs_coarse']['feats_out'].unsqueeze(0).permute(0,3,1,2)
+        fine_feats = data_pred['outputs_fine']['feats_out'].unsqueeze(0).permute(0,3,1,2)
+        h, w = coarse_feats.shape[2:4]
+        def pca_calc(feats):
+            fmap = feats.cuda()
+            pca = sklearn.decomposition.PCA(3, random_state=80)
+            f_samples = fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1])[::3].cpu().numpy()
+            transformed = pca.fit_transform(f_samples)
+            feature_pca_mean = torch.tensor(f_samples.mean(0)).float().cuda()
+            feature_pca_components = torch.tensor(pca.components_).float().cuda()
+            q1, q99 = np.percentile(transformed, [1, 99])
+            feature_pca_postprocess_sub = q1
+            feature_pca_postprocess_div = (q99 - q1)
+            del f_samples
+
+            vis_feature = (fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1]) - feature_pca_mean[None, :]) @ feature_pca_components.T
+            vis_feature = (vis_feature - feature_pca_postprocess_sub) / feature_pca_postprocess_div
+            vis_feature = vis_feature.clamp(0.0, 1.0).float().reshape((fmap.shape[2], fmap.shape[3], 3)).cpu()
+            return (vis_feature.cpu().numpy() * 255).astype(np.uint8)
+
+        rgbs = ray_batch['rgb']  # 1,rn,3
+        rgbs = rgbs.reshape([h*2, w*2, 3]).detach() * 255
+        rgbs = rgbs.squeeze().cpu().numpy().astype(np.uint8)[::2, ::2]     
+        imgs = [rgbs, pca_calc(coarse_feats), pca_calc(fine_feats)]
+
+        model_name = self.expname
+        if vis is True:
+            imsave(f'out/{model_name}/{val_name}/pca_{step}.png', concat_images_list(*imgs))
+
     def plot_semantic_results(self, data_pred, data_gt, step, val_name=None, vis=False):
         h, w = data_pred['sems'].shape[1:3]
         batch_size = data_pred['sems'].shape[0]
         self.color_map.to(data_gt['rgb'].device)
         
-        def get_img(data_src, key, channel):
+        if self.ignore_label != -1:
+            unvalid_pix_ids = data_gt['labels'] == self.ignore_label
+        else:
+            unvalid_pix_ids = np.zeros_like(data_gt, dtype=bool)
+        unvalid_pix_ids = unvalid_pix_ids.reshape(h,w,-1)
+
+        def get_label_img(data_src, key, channel):
             rgbs = data_src[key]  # 1,rn,3
             rgbs = rgbs[0] if batch_size > 1 else rgbs
             rgbs = rgbs.reshape([h, w, channel]).detach()
             if channel > 1:
                 rgbs = rgbs.argmax(axis=-1, keepdims=True)
+                rgbs[unvalid_pix_ids] = self.ignore_label
+
             rgbs = rgbs.squeeze().cpu().numpy()
             rgbs = self.color_map[rgbs]
             return rgbs
         
-        imgs = [get_img(data_gt, 'labels', 1), get_img(data_pred, 'sems', self.num_classes)]
+        def get_rgb(data_src, key, channel):
+            rgbs = data_src[key]  # 1,rn,3
+            rgbs = rgbs.reshape([h, w, channel]).detach() * 255
+            rgbs = rgbs.squeeze().cpu().numpy().astype(np.uint8)
+            return rgbs
+        
+        if 'full_rgb' not in data_gt.keys():
+            if 'que_sems' in data_pred.keys():
+                imgs = [get_label_img(data_gt, 'labels', 1), get_label_img(data_pred, 'sems', self.num_classes), get_label_img(data_pred, 'que_sems', self.num_classes)]
+            else:
+                imgs = [get_label_img(data_gt, 'labels', 1), get_label_img(data_pred, 'sems', self.num_classes)]
+        else:
+            imgs = [get_rgb(data_gt, 'full_rgb', 3), get_label_img(data_gt, 'labels', 1), get_label_img(data_pred, 'sems', self.num_classes)]
+
+        
 
         model_name = self.expname
-        Path(f'out/vis/{model_name}').mkdir(exist_ok=True, parents=True)
         if vis is True:
-            imsave(f'out/{model_name}/{val_name}/{step}.png', concat_images_list(*imgs))
+            imsave(f'out/{model_name}/{val_name}/seg_{step}.png', concat_images_list(*imgs))
         return imgs
     
     def compute_semantic_loss(self, label_pr, label_gt, num_classes):
@@ -110,14 +186,13 @@ class SemanticLoss(Loss):
 class DepthLoss(nn.Module):
 
     def __init__(self, args):
+        super(DepthLoss, self).__init__()
         self.depth_loss_scale = args.depth_loss_scale
 
         self.depth_correct_thresh = 0.02
-        self.depth_loss_type = 'l2'
+        self.depth_loss_type = 'smooth_l1'
         self.depth_loss_l1_beta = 0.05
-        if self.depth_loss_type == 'smooth_l1':
-            self.loss_op = nn.SmoothL1Loss(
-                reduction='none', beta=self.args['depth_loss_l1_beta'])
+        self.loss_op = nn.SmoothL1Loss(reduction='none', beta=self.depth_loss_l1_beta)
 
     def __call__(self, data_pr, data_gt, **kwargs):
         depth_pr = data_pr['outputs_coarse']['depth']  # pn
@@ -140,11 +215,9 @@ class DepthLoss(nn.Module):
             if self.depth_loss_type == 'l2':
                 loss = (depth_gt - depth_pr)**2
             elif self.depth_loss_type == 'smooth_l1':
-                loss = self.loss_op(depth_gt, depth_pr) 
+                loss = self.loss_op(depth_pr, depth_gt.squeeze(-1)) 
 
-            losses = torch.mean(loss, 1)
-            loss = torch.mean(loss)
-            return loss
+            return torch.mean(loss)
 
         outputs = {'train/depth-loss': compute_loss(depth_pr)}
         if 'outputs_fine' in data_pr:
@@ -243,4 +316,3 @@ def interpolate_feats(feats, points, h=None, w=None, padding_mode='zeros', align
     feats_inter = F.grid_sample(feats, points_norm, mode=inter_mode, padding_mode=padding_mode, align_corners=align_corners).squeeze(2)      # srn,f,n
     feats_inter = feats_inter.permute(0,2,1)
     return  feats_inter
-

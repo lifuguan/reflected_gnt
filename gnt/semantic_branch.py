@@ -65,6 +65,7 @@ class NeRFSemSegFPNHead(nn.Module):
             # distill loss
             device = deep_feats.device
             novel_feats = deep_feats[re_select_inds].detach()
+            # novel_feats = deep_feats[re_select_inds]
             loss_distillation = F.cosine_embedding_loss(novel_feats, out_feats, torch.ones((len(re_select_inds))).to(device), reduction='mean')
         else:
             deep_feats = deep_feats.reshape(1, deep_feats.shape[1], -1).squeeze(0).permute(1,0)
