@@ -117,7 +117,7 @@ class SemanticLoss(Loss):
         if self.ignore_label != -1:
             unvalid_pix_ids = data_gt['labels'] == self.ignore_label
         else:
-            unvalid_pix_ids = np.zeros_like(data_gt, dtype=bool)
+            unvalid_pix_ids = np.zeros_like(data_gt['labels'], dtype=bool)
         unvalid_pix_ids = unvalid_pix_ids.reshape(h,w,-1)
 
         def get_label_img(data_src, key, channel):

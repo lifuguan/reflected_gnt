@@ -5,64 +5,31 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "train: full",
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "1"
+            },
+            "name": "train: replica",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/train.py",
+            "program": "${workspaceFolder}/train_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_full.txt", "--expname", "debug", "--N_importance", "1"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
         },
         {
-            "name": "train: single view",
+            "name": "eval: replica",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/train.py",
+            "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_blender.txt", "--train_dataset", "llff", "--eval_scenes", "drums"]
-        },
-        {
-            "name": "test: single view",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/eval.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": ["--config", "configs/gnt_full.txt", "--eval_scenes", "room", "--expname", "gnt_full", "--chunk_size", "500", "--run_val", "--N_samples", "96", "--N_importance", "1"]
-        },
-        {
-            "name": "test: reflection",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/eval.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": ["--config", "configs/gnt_full.txt", "--eval_dataset", "rffr", "--eval_scenes", "art1", "--expname", "gnt_full", "--chunk_size", "500", "--run_val", "--N_samples", "192"]
-        },
-        {
-            "name": "finetune: rffr",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/train.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": ["--config", "configs/gnt_ft_rffr.txt"]
-        },
-        {
-            "name": "download",
-            "type": "python",
-            "request": "launch",
-            "program": "${workspaceFolder}/download_scannetv2.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "args": ["--o", "data"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/distill_replica/model_019999.pth"]
         },
         {
             "env":{
                 "CUDA_VISIBLE_DEVICES": "1"
             },
-            "name": "train: semantic",
+            "name": "train: scannet",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/train_scannet.py",

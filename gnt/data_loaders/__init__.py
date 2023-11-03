@@ -16,6 +16,7 @@ from .nmr_dataset import *
 from .rffr import RFFRDataset
 from .rffr_test import RFFRTestDataset
 from .scannet_dataset import ScannetTrainDataset, ScannetValDataset
+from .replica_dataset import ReplicaTrainDataset, ReplicaValDataset
 
 dataset_dict = {
     "spaces": SpacesFreeDataset,
@@ -35,4 +36,6 @@ dataset_dict = {
     "rffr": RFFRTestDataset,
     "train_scannet": ScannetTrainDataset,  # for train semanitc segmentation
     "val_scannet": ScannetValDataset,  # for val semanitc segmentation
+    "train_replica": ReplicaTrainDataset,  # for train semanitc segmentation
+    "val_replica": ReplicaValDataset,  # for val semanitc segmentation
 }

@@ -121,7 +121,7 @@ def train(args):
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in val_scenes:
-        val_dataset = dataset_dict['val_scannet'](args, is_train=False, scenes=name)
+        val_dataset = dataset_dict[args.eval_dataset](args, is_train=False, scenes=name)
         val_loader = DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
         val_set_names.append(name)
@@ -434,29 +434,34 @@ if __name__ == "__main__":
     parser = config.config_parser()
     args = parser.parse_args()
 
-    args.semantic_color_map=[
-        [174, 199, 232],  # wall
-        [152, 223, 138],  # floor
-        [31, 119, 180],   # cabinet
-        [255, 187, 120],  # bed
-        [188, 189, 34],   # chair
-        [140, 86, 75],    # sofa
-        [255, 152, 150],  # table
-        [214, 39, 40],    # door
-        [197, 176, 213],  # window
-        [148, 103, 189],  # bookshelf
-        [196, 156, 148],  # picture
-        [23, 190, 207],   # counter
-        [247, 182, 210],  # desk
-        [219, 219, 141],  # curtain
-        [255, 127, 14],   # refrigerator
-        [91, 163, 138],   # shower curtain
-        [44, 160, 44],    # toilet
-        [112, 128, 144],  # sink
-        [227, 119, 194],  # bathtub
-        [82, 84, 163],    # otherfurn
-        [248, 166, 116]  # invalid
-    ]
+    if args.train_dataset == 'train_replica' and args.eval_dataset == 'val_replica':
+        import imgviz
+        args.semantic_color_map = imgviz.label_colormap(args.num_classes + 1)
+    else:
+        args.semantic_color_map=[
+            [174, 199, 232],  # wall
+            [152, 223, 138],  # floor
+            [31, 119, 180],   # cabinet
+            [255, 187, 120],  # bed
+            [188, 189, 34],   # chair
+            [140, 86, 75],    # sofa
+            [255, 152, 150],  # table
+            [214, 39, 40],    # door
+            [197, 176, 213],  # window
+            [148, 103, 189],  # bookshelf
+            [196, 156, 148],  # picture
+            [23, 190, 207],   # counter
+            [247, 182, 210],  # desk
+            [219, 219, 141],  # curtain
+            [255, 127, 14],   # refrigerator
+            [91, 163, 138],   # shower curtain
+            [44, 160, 44],    # toilet
+            [112, 128, 144],  # sink
+            [227, 119, 194],  # bathtub
+            [82, 84, 163],    # otherfurn
+            [248, 166, 116]  # invalid
+        ]
+
     init_distributed_mode(args)
     if args.rank == 0 and args.expname != 'debug':
         wandb.init(
