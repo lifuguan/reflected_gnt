@@ -137,3 +137,8 @@ data/
 
 out
 model_zoo
+
+# deeplabv3
+detectron2
+data_generation
+download.sh

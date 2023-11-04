@@ -8,6 +8,7 @@
             "env":{
                 "CUDA_VISIBLE_DEVICES": "1"
             },
+            // CUDA_VISIBLE_DEVICES=0 python train_scannet.py --config configs/gnt_replica.txt --expname deeplav_add_ckpt ./model_720000.pth --ckpt_path ./out/gnt_best.pth --no_load_opt --no_load_scheduler
             "name": "train: replica",
             "type": "python",
             "request": "launch",
@@ -23,7 +24,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/distill_replica/model_019999.pth"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/deeplabv3/model_019999.pth"]
         },
         {
             "env":{

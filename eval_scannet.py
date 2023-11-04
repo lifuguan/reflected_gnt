@@ -67,6 +67,7 @@ def eval(args):
     # create validation dataset
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
+    val_scenes = [val_scenes] if type(val_scenes) is str else val_scenes
     for name in val_scenes:
         val_dataset = dataset_dict[args.eval_dataset](args, is_train=False, scenes=name)
         val_loader = DataLoader(val_dataset, batch_size=1)
