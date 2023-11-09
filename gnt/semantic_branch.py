@@ -79,7 +79,7 @@ class NeRFSemSegFPNHead(nn.Module):
             else:
                 chunk = F.interpolate(chunk, scale_factor = 1/(2**i), mode='bilinear', align_corners=True, recompute_scale_factor=True)
                 x = x + self.scale_heads[i](chunk)
-
+                
         out = self.predictor(x)
         out = F.interpolate(out, scale_factor = 2, mode='bilinear', align_corners=True)
         if select_inds is not None:

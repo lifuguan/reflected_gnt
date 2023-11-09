@@ -8,6 +8,30 @@
             "env":{
                 "CUDA_VISIBLE_DEVICES": "1"
             },
+            "name": "train: replica instance",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/train_ins_scannet.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_replica_instance.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
+        },
+        {
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "1"
+            },
+            "name": "eval: replica instance",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/eval_ins_scannet.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_replica_instance.txt", "--expname", "ins_replica_gpu_8", "--no_load_opt", "--no_load_scheduler", "--chunk_size", "512"]
+        },
+        {
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "1"
+            },
             "name": "train: replica",
             "type": "python",
             "request": "launch",
