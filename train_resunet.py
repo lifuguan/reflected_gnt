@@ -24,7 +24,7 @@ import config
 
 from sklearn.metrics import confusion_matrix
 
-from gnt.data_loaders.semantic_dataset import RandomRendererDataset, OrderRendererDataset
+from gnt.data_loaders.semantic_dataset import RandomRendererDataset, OrderRendererDataset, RandomRendererDataset_Replica
 
 def nanmean(data, **args):
     return np.ma.masked_array(data, np.isnan(data)).mean(**args)
@@ -80,8 +80,8 @@ class SemanticLoss(Loss):
 # From https://github.com/Harry-Zhi/semantic_nerf/blob/a0113bb08dc6499187c7c48c3f784c2764b8abf1/SSR/training/training_utils.py
 class IoU(Loss):
     default_cfg = {
-        'ignore_label': 20,
-        'num_classes': 20,
+        'ignore_label': 51,
+        'num_classes': 51,
     }
 
     def __init__(self, cfg):
@@ -145,6 +145,7 @@ def evaluate(net, val_set_names, val_loader_list, device, amp, losses, args):
 
     # iterate over the validation set
     with torch.autocast(device.type if device.type != 'mps' else 'cpu', enabled=amp):
+    # with torch.no_grad():
 
         all_eval_results = {}
         for (val_loader, val_name) in zip(val_loader_list, val_set_names):
@@ -241,13 +242,15 @@ def train_model(
         gradient_clipping: float = 1.0,
         wandb_name='ResUNet',
 ):
-    train_set = RandomRendererDataset(is_train=True)
+    # train_set = RandomRendererDataset(is_train=True)
+    train_set = RandomRendererDataset_Replica(is_train=True) # use Replica dataset if want to use scannet, above
     # train_set = OrderRendererDataset(is_train=True)
     # create validation dataset
     val_set_lists, val_set_names = [], []
     val_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
+    val_scenes = [val_scenes] if type(val_scenes) is str else val_scenes
     for name in val_scenes:
-        val_dataset = dataset_dict['val_scannet'](args, is_train=False, scenes=name)
+        val_dataset = dataset_dict['val_replica'](args, is_train=False, scenes=name)
         val_loader = DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
         val_set_names.append(name)
@@ -365,7 +368,7 @@ def train_model(
                 print('loss: {}   miou: {}'.format(loss.item(), iou_metric['miou'].item()))
                 if args.expname != 'debug':
                     experiment.log({'train loss': loss.item(), 'train/iou':iou_metric['miou'].item()})
-            if (global_step+1) % 10000 == 0:
+            if (global_step+1) % 500 == 0:
                 if args.batch_size == 1:
                     ray_batch = {"rgb": images, "sems": masks_pred, "labels": true_masks}
                     _ = plotter.plot_semantic_results(ray_batch, ray_batch, global_step)
@@ -406,8 +409,8 @@ def get_args():
     parser.add_argument('--amp', action='store_true', default=False, help='Use mixed precision')
     parser.add_argument('--bilinear', action='store_true', default=False, help='Use bilinear upsampling')
     parser.add_argument('--classes', '-c', type=int, default=20, help='Number of classes')
-    parser.add_argument('--num_classes', type=int, default=20, help='Number of classes')
-    parser.add_argument('--ignore_label', type=int, default=20, help='Number of classes')
+    parser.add_argument('--num_classes', type=int, default=51, help='Number of classes')
+    parser.add_argument('--ignore_label', type=int, default=51, help='Number of classes')
 
     parser.add_argument(
         "--coarse_feat_dim", type=int, default=32, help="2D feature dimension for coarse level"
@@ -415,7 +418,7 @@ def get_args():
     parser.add_argument(
         "--fine_feat_dim", type=int, default=32, help="2D feature dimension for fine level"
     )
-    parser.add_argument('--val_set_list', type=str, default="configs/scannetv2_test_split.txt")
+    parser.add_argument('--val_set_list', type=str, default="configs/replica_test_split.txt")
 
     parser.add_argument('--selected_inds', action="store_true")
 
@@ -444,29 +447,33 @@ def get_args():
 
 if __name__ == '__main__':
     args = get_args()
-    args.semantic_color_map=[
-        [174, 199, 232],  # wall
-        [152, 223, 138],  # floor
-        [31, 119, 180],   # cabinet
-        [255, 187, 120],  # bed
-        [188, 189, 34],   # chair
-        [140, 86, 75],    # sofa
-        [255, 152, 150],  # table
-        [214, 39, 40],    # door
-        [197, 176, 213],  # window
-        [148, 103, 189],  # bookshelf
-        [196, 156, 148],  # picture
-        [23, 190, 207],   # counter
-        [247, 182, 210],  # desk
-        [219, 219, 141],  # curtain
-        [255, 127, 14],   # refrigerator
-        [91, 163, 138],   # shower curtain
-        [44, 160, 44],    # toilet
-        [112, 128, 144],  # sink
-        [227, 119, 194],  # bathtub
-        [82, 84, 163],    # otherfurn
-        [248, 166, 116]  # invalid
-    ]
+    if args.num_classes == 51:
+        import imgviz
+        args.semantic_color_map = imgviz.label_colormap(args.num_classes + 1)
+    else:
+        args.semantic_color_map=[
+            [174, 199, 232],  # wall
+            [152, 223, 138],  # floor
+            [31, 119, 180],   # cabinet
+            [255, 187, 120],  # bed
+            [188, 189, 34],   # chair
+            [140, 86, 75],    # sofa
+            [255, 152, 150],  # table
+            [214, 39, 40],    # door
+            [197, 176, 213],  # window
+            [148, 103, 189],  # bookshelf
+            [196, 156, 148],  # picture
+            [23, 190, 207],   # counter
+            [247, 182, 210],  # desk
+            [219, 219, 141],  # curtain
+            [255, 127, 14],   # refrigerator
+            [91, 163, 138],   # shower curtain
+            [44, 160, 44],    # toilet
+            [112, 128, 144],  # sink
+            [227, 119, 194],  # bathtub
+            [82, 84, 163],    # otherfurn
+            [248, 166, 116]  # invalid
+        ]
     args.num_source_views=10
     args.rectify_inplane_rotation=0.0
     args.rootdir='./'

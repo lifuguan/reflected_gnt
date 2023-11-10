@@ -8,7 +8,7 @@ distributed = False
 train_dataset = train_replica
 dataset_weights = [1]
 eval_dataset = val_replica
-val_set_list = configs/replica_test_split.txt
+val_set_list = configs/replica_office2.txt
 
 ### TRAINING
 N_rand = 400
@@ -30,11 +30,11 @@ inv_uniform = True
 white_bkgd = False
 
 ### CONSOLE AND TENSORBOARD
-total_step = 250000
+total_step = 6000
 i_print = 100
-save_interval = 20000
+save_interval = 500
 
-### SEMANTIC SETTING
+### SEMANTIC SETTING 
 save_feature = True
 semantic_model = fpn
 

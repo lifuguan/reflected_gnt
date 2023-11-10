@@ -19,6 +19,7 @@ import imageio
 
 from gnt.loss import RenderLoss, SemanticLoss, IoU, DepthLoss
 import logging
+import cv2
 
 
 def worker_init_fn(worker_id):
@@ -172,6 +173,7 @@ def log_view(
 ):
     model.switch_to_eval()
     with torch.no_grad():
+    # if True:
         ray_batch = ray_sampler.get_all()
 
         ref_coarse_feats, _, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
@@ -239,11 +241,11 @@ def log_view(
 
     rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
     filename = os.path.join(out_folder, val_name, "rgb_{:03d}.png".format(global_step))
-    imageio.imwrite(filename, rgb_im)
+    cv2.imwrite(filename, rgb_im)
     if depth_im is not None:
         depth_im = depth_im.permute(1, 2, 0).detach().cpu().numpy()
         filename = os.path.join(out_folder, val_name, "depth_{:03d}.png".format(global_step))
-        imageio.imwrite(filename, depth_im)
+        cv2.imwrite(filename, depth_im)
 
     
     # write scalar

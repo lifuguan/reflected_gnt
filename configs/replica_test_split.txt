@@ -1,2 +1,1 @@
-office_4
-room_2
+office_1

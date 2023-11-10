@@ -106,8 +106,9 @@ def train(args):
     # create finetuning dataset for each scene
     train_set_lists, val_set_lists, scene_set_names= [], [], []
     ft_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
+    ft_scenes = [ft_scenes] if type(ft_scenes) is str else ft_scenes
     for name in ft_scenes:
-        train_dataset = dataset_dict['val_scannet'](args, is_train=True, scenes=name)
+        train_dataset = dataset_dict['train_replica'](args, is_train=True, scenes=name)
         train_sampler = (
             torch.utils.data.distributed.DistributedSampler(train_dataset)
             if args.distributed
@@ -123,10 +124,11 @@ def train(args):
             shuffle=True if train_sampler is None else False,
         )
         train_set_lists.append(train_loader)
-        val_dataset = dataset_dict['val_scannet'](args, is_train=False, scenes=name)
+        val_dataset = dataset_dict['val_replica'](args, is_train=False, scenes=name)
         val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1)
         val_set_lists.append(val_loader)
-        scene_set_names.append(name.split('/')[1])
+        # scene_set_names.append(name.split('/')[1])
+        scene_set_names.append(name)
 
         print(f'{name} val set len {len(val_loader)}')
 
@@ -151,7 +153,7 @@ def train(args):
                 time0 = time.time()
 
                 if args.distributed:
-                    train_sampler.set_epoch(epoch)
+                    train_loader.sampler.set_epoch(epoch)
 
                 # load training rays
                 ray_sampler = RaySamplerSingleImage(train_data, device)
@@ -289,7 +291,8 @@ def train(args):
                         scene_depth = np.mean(depth_scores)
                         print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, IoU: {}, Depth: {}".format(
                             scene_name,scene_psnr ,scene_iou  ,scene_psnr ,scene_lpips,scene_ssim,scene_depth))
-                        wandb.log({"val-PSNR/{}".format(scene_name): scene_psnr, "val-IoU/{}".format(scene_name): scene_iou})
+                        if args.expname != "debug": 
+                            wandb.log({"val-PSNR/{}".format(scene_name): scene_psnr, "val-IoU/{}".format(scene_name): scene_iou})
                         
                         # 如果比上一次的miou大，则
                         if scene_iou > all_iou_scores[scene_name]:
@@ -329,6 +332,7 @@ def log_view(
 ):
     model.switch_to_eval()
     with torch.no_grad():
+    # if True:
         ray_batch = ray_sampler.get_all()
 
         ref_coarse_feats, fine_feats, ref_deep_semantics = model.feature_net(ray_batch["src_rgbs"].squeeze(0).permute(0, 3, 1, 2))
@@ -397,12 +401,17 @@ def log_view(
         depth_im = img_HWC2CHW(depth_pred)
 
     rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
+    dir_name = os.path.join(out_folder, val_name)
+    if not os.path.exists(dir_name):
+        os.makedirs(dir_name)
+        print(f"The folder {dir_name} has been created!")
     filename = os.path.join(out_folder, val_name, "rgb_{:03d}.png".format(global_step))
-    imageio.imwrite(filename, rgb_im)
+    # imageio.imwrite(filename, rgb_im)
+    imageio.imwrite(filename, (rgb_im*255).astype(np.uint8))
     if depth_im is not None:
         depth_im = depth_im.permute(1, 2, 0).detach().cpu().numpy()
         filename = os.path.join(out_folder, val_name, "depth_{:03d}.png".format(global_step))
-        imageio.imwrite(filename, depth_im)
+        imageio.imwrite(filename, (depth_im*255).astype(np.uint8))
     
     try:
         if args.expname != 'debug':
@@ -415,7 +424,11 @@ def log_view(
         ret["outputs_fine"]["rgb"]
         if ret["outputs_fine"] is not None else ret["outputs_coarse"]["rgb"]
     )
-
+    # if args.expname != 'debug':
+    #     wandb.log({
+    #     'val': {'img_true': wandb.Image(gt_img.cpu().numpy()),
+    #             'img_pred': wandb.Image(pred_rgb.cpu().numpy())},
+    #     })
     lpips_curr_img = lpips(pred_rgb, gt_img, format="HWC").item()
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
@@ -437,29 +450,33 @@ if __name__ == "__main__":
     parser = config.config_parser()
     args = parser.parse_args()
 
-    args.semantic_color_map=[
-        [174, 199, 232],  # wall
-        [152, 223, 138],  # floor
-        [31, 119, 180],   # cabinet
-        [255, 187, 120],  # bed
-        [188, 189, 34],   # chair
-        [140, 86, 75],    # sofa
-        [255, 152, 150],  # table
-        [214, 39, 40],    # door
-        [197, 176, 213],  # window
-        [148, 103, 189],  # bookshelf
-        [196, 156, 148],  # picture
-        [23, 190, 207],   # counter
-        [247, 182, 210],  # desk
-        [219, 219, 141],  # curtain
-        [255, 127, 14],   # refrigerator
-        [91, 163, 138],   # shower curtain
-        [44, 160, 44],    # toilet
-        [112, 128, 144],  # sink
-        [227, 119, 194],  # bathtub
-        [82, 84, 163],    # otherfurn
-        [248, 166, 116]  # invalid
-    ]
+    if args.train_dataset == 'train_replica' and args.eval_dataset == 'val_replica':
+        import imgviz
+        args.semantic_color_map = imgviz.label_colormap(args.num_classes + 1)
+    else:
+        args.semantic_color_map=[
+            [174, 199, 232],  # wall
+            [152, 223, 138],  # floor
+            [31, 119, 180],   # cabinet
+            [255, 187, 120],  # bed
+            [188, 189, 34],   # chair
+            [140, 86, 75],    # sofa
+            [255, 152, 150],  # table
+            [214, 39, 40],    # door
+            [197, 176, 213],  # window
+            [148, 103, 189],  # bookshelf
+            [196, 156, 148],  # picture
+            [23, 190, 207],   # counter
+            [247, 182, 210],  # desk
+            [219, 219, 141],  # curtain
+            [255, 127, 14],   # refrigerator
+            [91, 163, 138],   # shower curtain
+            [44, 160, 44],    # toilet
+            [112, 128, 144],  # sink
+            [227, 119, 194],  # bathtub
+            [82, 84, 163],    # otherfurn
+            [248, 166, 116]  # invalid
+        ]
     init_distributed_mode(args)
     if args.rank == 0 and args.expname != 'debug':
         wandb.init(

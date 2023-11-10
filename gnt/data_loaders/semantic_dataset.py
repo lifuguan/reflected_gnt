@@ -175,8 +175,90 @@ class RandomRendererDataset(Dataset):
             "image": torch.as_tensor(rgb.copy()).float().contiguous(),
             "mask": torch.as_tensor(label.copy()).long().contiguous()
         }
+replica_set = replica_train
+# train_resunet.py change scannet dataset to replica dataset
+class RandomRendererDataset_Replica(Dataset):
+    def __init__(self, is_train, **kwargs):
+        self.is_train = is_train
+        if self.is_train == True:
+            self.scene_path_list = replica_set
+        else:
+            self.scene_path_list = replica_set
 
+        image_size = 320
+        self.ratio = image_size / 640
+        self.h, self.w = int(self.ratio*480), int(image_size)
 
+        all_rgb_files = []
+        all_label_files = []
+        all_pose_files = []
+        for i, scene_path in enumerate(self.scene_path_list):
+            scene_path = os.path.join('data/Replica', scene_path, 'Sequence_1')
+            # pose_files = []
+            poses = np.loadtxt(f'{scene_path}/traj_w_c.txt',delimiter=' ').reshape(-1, 4, 4).astype(np.float32)
+            # for f in sorted(os.listdir(os.path.join(scene_path, "pose"))):
+            #     path = os.path.join(scene_path, "pose", f)
+            #     pose_files.append(path)
+            rgb_files = []
+            for i, f in enumerate(sorted(os.listdir(os.path.join(scene_path, "rgb")), key=lambda x: int(x.split('_')[1].split('.')[0]))):
+                path = os.path.join(scene_path, "rgb", f)
+                if np.isinf(poses[i]).any() or np.isnan(poses[i]).any():
+                    continue
+                else:
+                    rgb_files.append(path)
+            label_files = [f.replace("rgb", "semantic_class") for f in rgb_files]
+            # rgb_files = [f.replace("pose", "color").replace("txt", "jpg") for f in pose_files]
+            # label_files = [f.replace("pose", "label-filt").replace("txt", "png") for f in pose_files]
+
+            all_rgb_files.append(rgb_files)
+            all_label_files.append(label_files)
+            all_pose_files.append(poses)
+        
+        index = np.arange(len(all_rgb_files))
+        self.all_rgb_files = np.array(all_rgb_files, dtype=object)[index]
+        self.all_label_files = np.array(all_label_files, dtype=object)[index]
+        self.all_poses = np.array(all_pose_files)[index]
+
+        self.label_mapping = PointSegClassMapping(
+            valid_cat_ids=[
+                3, 7, 8, 10, 11, 12, 13, 14, 15, 16,
+                17, 18, 19, 20, 22, 23, 26, 29, 31,
+                34, 35, 37, 40, 44, 47, 52, 54, 56,
+                59, 60, 61, 62, 63, 64, 65, 70, 71,
+                76, 78, 79, 80, 82, 83, 87, 88, 91,
+                92, 93, 95, 97, 98
+            ],
+            max_cat_id=101
+        )
+
+    def __len__(self):
+        return 999999
+    
+    def __getitem__(self, idx):
+        real_idx = idx % len(self.all_rgb_files)
+        rgb_files = self.all_rgb_files[real_idx]
+        label_files = self.all_label_files[real_idx]
+        id_render = np.random.choice(np.arange(len(rgb_files)))
+        rgb_file = rgb_files[id_render]
+        label_file = label_files[id_render]
+
+        rgb = imageio.imread(rgb_file).astype(np.float32) / 255.0
+
+        if self.w != 1296:
+            rgb = cv2.resize(downsample_gaussian_blur(
+                rgb, self.ratio), (self.w, self.h), interpolation=cv2.INTER_LINEAR)
+
+        img = Image.open(label_file)
+        label = np.asarray(img, dtype=np.int32)
+        label = np.ascontiguousarray(label)
+        label = cv2.resize(label, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+        label = label.astype(np.int32)
+        label = self.label_mapping(label)
+    
+        return {
+            "image": torch.as_tensor(rgb.copy()).float().contiguous(),
+            "mask": torch.as_tensor(label.copy()).long().contiguous()
+        }
 
 class StatisticRendererDataset(Dataset):
     def __init__(self, is_train, **kwargs):

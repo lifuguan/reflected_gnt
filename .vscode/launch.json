@@ -6,6 +6,19 @@
     "configurations": [
         {
             "env":{
+                "CUDA_VISIBLE_DEVICES": "0"
+            },
+            // CUDA_VISIBLE_DEVICES=0 python train_scannet.py --config configs/gnt_replica.txt --expname deeplav_add_ckpt --ckpt_path ./out/gnt_best.pth --no_load_opt --no_load_scheduler
+            "name": "train: ft_replica",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/ft_scannet.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug","--ckpt_path", "./out/gnt_best.pth", "--no_load_opt", "--no_load_scheduler"]
+        },
+        {
+            "env":{
                 "CUDA_VISIBLE_DEVICES": "1"
             },
             // CUDA_VISIBLE_DEVICES=0 python train_scannet.py --config configs/gnt_replica.txt --expname deeplav_add_ckpt ./model_720000.pth --ckpt_path ./out/gnt_best.pth --no_load_opt --no_load_scheduler
@@ -24,7 +37,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/deeplabv3/model_019999.pth"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "ft_replica_per_scene_no_eval_2", "--no_load_opt", "--ckpt_path", "out/ft_replica_per_scene_no_eval_2/best_office_0.pth","--run_val"]
         },
         {
             "env":{
@@ -55,7 +68,7 @@
             "program": "${workspaceFolder}/train_resunet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
+            "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--val_set_list","configs/replica_test_split.txt", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
             // "args": ["--model", "SSLSemModel", "-b", "1", "--expname", "debug", "--backbone_pretrain", "model_zoo/dino_resnet50_pretrain.pth"]
         },
         {
