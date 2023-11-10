@@ -37,7 +37,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_replica.txt", "--expname", "ft_replica_per_scene_no_eval_2", "--no_load_opt", "--ckpt_path", "out/ft_replica_per_scene_no_eval_2/best_office_0.pth","--run_val"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "ft_replica_per_scene_no_eval_2", "--no_load_opt", "--ckpt_path", "out/ft_replica_office2_no_eval/best_office_2.pth","--run_val"]
         },
         {
             "env":{
