@@ -1,17 +1,16 @@
 ### INPUT
-expname = gnt_replica_instance
+expname = gnt_replica
 rootdir = ./
 render_stride = 2
 distributed = False
-num_source_views = 10
 
 ## dataset
-train_dataset = instance_replica
+train_dataset = train_replica
 dataset_weights = [1]
-eval_dataset = instance_replica
-val_set_list = configs/replica_instance_split.txt
-original_width = 320
-original_height = 240
+eval_dataset = val_replica
+val_set_list = configs/replica_test_split.txt
+original_width = 640
+original_height = 480
 
 ### TRAINING
 N_rand = 400
@@ -33,7 +32,7 @@ inv_uniform = True
 white_bkgd = False
 
 ### CONSOLE AND TENSORBOARD
-total_step = 6000
+total_step = 16000
 i_print = 100
 save_interval = 2000
 
@@ -42,9 +41,9 @@ save_feature = True
 semantic_model = fpn
 
 ###
-render_loss_scale = 1.0
-semantic_loss_scale = 0.5
-distill_loss_scale = 0.25
+render_loss_scale = 0.25
+semantic_loss_scale = 0.75
+distill_loss_scale = 0.5
 depth_loss_scale = 0
 
 

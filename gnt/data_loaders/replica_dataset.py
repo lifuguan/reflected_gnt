@@ -37,9 +37,9 @@ class ReplicaTrainDataset(Dataset):
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
 
-        image_size = 320
-        self.ratio = image_size / 640
-        self.h, self.w = int(self.ratio*480), int(image_size)
+        image_size = args.original_width
+        self.ratio = image_size / args.original_width
+        self.h, self.w = int(self.ratio * args.original_height), int(image_size)
 
         all_rgb_files, all_depth_files, all_poses, all_label_files = [],[],[],[]
         for scene in tqdm(self.scene_path_list, desc=f'Train Loader'):
@@ -194,10 +194,10 @@ class ReplicaValDataset(Dataset):
         self.is_train = is_train
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
-
-        image_size = 320
-        self.ratio = image_size / 640
-        self.h, self.w = int(self.ratio*480), int(image_size)
+        
+        image_size = args.original_width
+        self.ratio = image_size / args.original_width
+        self.h, self.w = int(self.ratio * args.original_height), int(image_size)
 
         scene_path = os.path.join(args.rootdir + 'data/Replica', scenes, 'Sequence_1')
         poses = np.loadtxt(f'{scene_path}/traj_w_c.txt',delimiter=' ').reshape(-1, 4, 4).astype(np.float32)

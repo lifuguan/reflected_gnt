@@ -13,6 +13,10 @@ class NeRFSemSegFPNHead(nn.Module):
     def __init__(self, args, feature_strides=[2,4,8,16], feature_channels=[128,128,128,128]):
         super(NeRFSemSegFPNHead, self).__init__()
         num_classes = args.num_classes
+        self.downsample_factor = 2
+        self.original_width = args.original_width
+        self.original_height = args.original_height
+
         conv_dims = 128
         self.scale_heads = nn.ModuleList()
         self.common_stride = 2
@@ -42,14 +46,13 @@ class NeRFSemSegFPNHead(nn.Module):
         self.predictor = Conv2d(conv_dims, num_classes + 1, kernel_size=1, stride=1, padding=0)
 
     def original_index_to_downsampled_index(self, original_index):
-        original_width, downsample_factor = 320, 2
-        original_row = (original_index-1) // original_width
-        original_col = (original_index-1) % original_width
+        original_row = (original_index-1) // self.original_width
+        original_col = (original_index-1) % self.original_width
         
-        downsampled_row = original_row // downsample_factor
-        downsampled_col = original_col // downsample_factor
+        downsampled_row = original_row // self.downsample_factor
+        downsampled_col = original_col // self.downsample_factor
         
-        downsampled_index = downsampled_row * (original_width // downsample_factor) + downsampled_col
+        downsampled_index = downsampled_row * (self.original_width // self.downsample_factor) + downsampled_col
         
         return downsampled_index
     
@@ -73,7 +76,8 @@ class NeRFSemSegFPNHead(nn.Module):
         ####### constrcut feature pyramids and Decoder  #######
         chunks = torch.chunk(deep_feats, 4, dim=1)
         for i, chunk in enumerate(chunks):
-            chunk = chunk.reshape(120, 160, chunk.shape[-1]).permute(2,0,1).unsqueeze(0) # 1, 512, h, w
+            chunk = chunk.reshape(self.original_height // self.downsample_factor, self.original_width // self.downsample_factor, \
+                                  chunk.shape[-1]).permute(2,0,1).unsqueeze(0) # 1, 512, h, w
             if i == 0:
                 x = self.scale_heads[i](chunk)
             else:

@@ -328,8 +328,7 @@ def train(args):
                                     "val-AP95/{}".format(scene_name): scene_ap95,
                                     "val-que_AP50/{}".format(scene_name): que_scene_ap50,
                                     "val-que_AP75/{}".format(scene_name): que_scene_ap75,
-                                    "val-que_AP95/{}".format(scene_name): que_scene_ap95,
-                                    })
+                                    "val-que_AP95/{}".format(scene_name): que_scene_ap95})
                         
                         # 如果比上一次的miou大，则
                         if scene_ap75 > all_ap75_scores[scene_name]:

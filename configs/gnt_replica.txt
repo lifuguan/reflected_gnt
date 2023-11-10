@@ -9,6 +9,8 @@ train_dataset = train_replica
 dataset_weights = [1]
 eval_dataset = val_replica
 val_set_list = configs/replica_test_split.txt
+original_width = 640
+original_height = 480
 
 ### TRAINING
 N_rand = 400

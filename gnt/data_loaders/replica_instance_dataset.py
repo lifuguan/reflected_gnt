@@ -33,9 +33,9 @@ class ReplicaInsDataset(Dataset):
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
 
-        image_size = 320
+        image_size = args.original_width
         self.ratio = image_size / 640
-        self.h, self.w = int(self.ratio*480), int(image_size)
+        self.h, self.w = int(self.ratio * 480), int(image_size)
 
         scene_path = os.path.join(args.rootdir + 'data/Replica_DM', scenes)
         poses = np.loadtxt(f'{scene_path}/traj_w_c.txt',delimiter=' ').reshape(-1, 4, 4).astype(np.float32)
@@ -54,7 +54,7 @@ class ReplicaInsDataset(Dataset):
         
         que_idxs = np.arange(len(self.rgb_files))
         self.train_que_idxs = que_idxs[:900:2]
-        self.val_que_idxs = que_idxs[:900:20]
+        self.val_que_idxs = que_idxs[:900:20][30:]
 
     def __len__(self):
         if self.is_train is True:

@@ -1,6 +1,6 @@
-room_1
-room_2
 room_0
+room_2
+room_1
 office_2
 office_3
 office_4

@@ -223,4 +223,7 @@ def config_parser():
 
     parser.add_argument('--model', type=str, default='gnt')
 
+    parser.add_argument("--original_width", type=int, default=320)
+    parser.add_argument("--original_height", type=int, default=240)
+
     return parser

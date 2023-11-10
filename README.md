@@ -46,3 +46,10 @@ python -m torch.distributed.launch --nproc_per_node=8 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        train_ins_scannet.py --config configs/gnt_replica_instance.txt \
        --ckpt_path ./out/gnt_best.pth --expname ins_replica_gpu_8 --no_load_opt --no_load_scheduler
+
+
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+python -m torch.distributed.launch --nproc_per_node=4 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       ft_scannet.py --config configs/gnt_replica_ft.txt \
+       --ckpt_path ./out/distill_replica/gnt_best.pth --expname ft_replica  --no_load_opt --no_load_scheduler
