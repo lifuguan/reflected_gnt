@@ -107,7 +107,7 @@ def train(args):
     train_set_lists, val_set_lists, scene_set_names= [], [], []
     ft_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in ft_scenes:
-        train_dataset = dataset_dict[args.train_dataset](args, is_train=True, scenes=name)
+        train_dataset = dataset_dict[args.eval_dataset](args, is_train=True, scenes=name)
         train_sampler = (
             torch.utils.data.distributed.DistributedSampler(train_dataset)
             if args.distributed
@@ -213,6 +213,7 @@ def train(args):
                 scalars_to_log["train/semantic-loss"] = semantic_loss['train/semantic-loss'].item()
                 scalars_to_log["train/rgb-loss"] = render_loss['train/rgb-loss'].item()
                 scalars_to_log["train/depth-loss"] = depth_loss['train/depth-loss'].item()
+                scalars_to_log["train/distill-loss"] = loss_distill.item()
 
                 scalars_to_log["lr"] = model.scheduler.get_last_lr()[0]
                 # end of core optimization loop
@@ -358,8 +359,8 @@ def log_view(
         
         ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
         ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
-        
-        ret['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        ret['outputs_fine']['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
+        ret['que_sems'] = ret['outputs_fine']['que_sems']
         
 
 

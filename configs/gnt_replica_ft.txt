@@ -5,7 +5,7 @@ render_stride = 2
 distributed = False
 
 ## dataset
-train_dataset = train_replica
+train_dataset = val_replica
 dataset_weights = [1]
 eval_dataset = val_replica
 val_set_list = configs/replica_test_split.txt

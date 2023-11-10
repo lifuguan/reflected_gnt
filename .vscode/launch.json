@@ -47,7 +47,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/distill_replica/model_019999.pth", "--chunk_size", "512"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/ft_replica/best_office_2.pth", "--chunk_size", "512"]
         },
         {
             "name": "ft: replica",
