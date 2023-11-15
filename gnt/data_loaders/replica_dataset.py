@@ -43,23 +43,26 @@ class ReplicaTrainDataset(Dataset):
 
         all_rgb_files, all_depth_files, all_poses, all_label_files = [],[],[],[]
         for scene in tqdm(self.scene_path_list, desc=f'Train Loader'):
-            scene_path = os.path.join(args.rootdir + 'data/Replica', scene, 'Sequence_1')
-            poses = np.loadtxt(f'{scene_path}/traj_w_c.txt',delimiter=' ').reshape(-1, 4, 4).astype(np.float32)
-            rgb_files = []
-            for i, f in enumerate(sorted(os.listdir(os.path.join(scene_path, "rgb")), key=lambda x: int(x.split('_')[1].split('.')[0]))):
-                path = os.path.join(scene_path, "rgb", f)
-                if np.isinf(poses[i]).any() or np.isnan(poses[i]).any():
-                    continue
-                else:
-                    rgb_files.append(path)
-                    
-            depth_files = [f.replace("rgb", "depth") for f in rgb_files]
-            label_files = [f.replace("rgb", "semantic_class") for f in rgb_files]
+            for i in range(2):
+                scene_path = os.path.join(args.rootdir + 'data/Replica', scene, f'Sequence_{1+i}')
+                poses = np.loadtxt(f'{scene_path}/traj_w_c.txt',delimiter=' ').reshape(-1, 4, 4).astype(np.float32)
+                rgb_files = []
+                for i, f in enumerate(sorted(os.listdir(os.path.join(scene_path, "rgb")), key=lambda x: int(x.split('_')[1].split('.')[0]))):
+                    path = os.path.join(scene_path, "rgb", f)
+                    if np.isinf(poses[i]).any() or np.isnan(poses[i]).any():
+                        continue
+                    else:
+                        rgb_files.append(path)
+                        
+                depth_files = [f.replace("rgb", "depth") for f in rgb_files]
+                label_files = [f.replace("rgb", "semantic_class") for f in rgb_files]
 
-            all_rgb_files.append(rgb_files)
-            all_depth_files.append(depth_files)
-            all_label_files.append(label_files)
-            all_poses.append(poses)
+                all_rgb_files.append(rgb_files)
+                all_depth_files.append(depth_files)
+                all_label_files.append(label_files)
+                all_poses.append(poses)
+
+            
 
         index = np.arange(len(all_rgb_files))
         self.all_rgb_files = np.array(all_rgb_files, dtype=object)[index]

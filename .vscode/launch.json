@@ -47,7 +47,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/ft_replica/best_office_2.pth", "--chunk_size", "512"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/distill_replica/model_003999.pth", "--chunk_size", "2048"]
         },
         {
             "name": "ft: replica",
@@ -78,7 +78,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "gnt_scannet_0815_selected_inds", "--no_load_opt", "--ckpt_path", "./out/gnt_scannet_0815_selected_inds/model_199999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--expname", "distill_dgs_gpu_8", "--no_load_opt", "--ckpt_path", "./out/distill_dgs_gpu_8/model_199999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
         },
         {
             "name": "train: resunet",
