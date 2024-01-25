@@ -5,6 +5,7 @@ import shutil
 import torch
 import torch.utils.data.distributed
 from torch.nn import functional as F
+from tqdm import tqdm
 
 from gnt.data_loaders import dataset_dict
 from gnt.render_ray import render_rays
@@ -99,31 +100,18 @@ def train(args):
             shutil.copy(args.config, f)
 
     # create finetuning dataset for each scene
-    train_set_lists, val_set_lists, scene_set_names= [], [], []
-    ft_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
+    render_set_lists, scene_set_names= [], []
+    if args.train_scenes is not None:
+        ft_scenes = args.train_scenes
+    else:
+        ft_scenes = np.loadtxt(args.val_set_list, dtype=str).tolist()
     for name in ft_scenes:
-        train_dataset = dataset_dict['instance_replica'](args, is_train=True, scenes=name)
-        train_sampler = (
-            torch.utils.data.distributed.DistributedSampler(train_dataset)
-            if args.distributed
-            else None
-        )
-        train_loader = torch.utils.data.DataLoader(
-            train_dataset,
-            batch_size=1,
-            worker_init_fn=lambda _: np.random.seed(),
-            num_workers=args.num_workers,
-            pin_memory=True,
-            sampler=train_sampler,
-            shuffle=True if train_sampler is None else False,
-        )
-        train_set_lists.append(train_loader)
-        val_dataset = dataset_dict['instance_replica'](args, is_train=False, scenes=name)
-        val_loader = torch.utils.data.DataLoader(val_dataset, batch_size=1)
-        val_set_lists.append(val_loader)
+        render_dataset = dataset_dict['instance_replica'](args, is_train=True, scenes=name)
+        render_loader = torch.utils.data.DataLoader(render_dataset, batch_size=1)
+        render_set_lists.append(render_loader)
         scene_set_names.append(name)
         os.makedirs(out_folder + '/' + name, exist_ok=True)
-        print(f'{name} val set len {len(val_loader)}')
+        print(f'{name} render set len {len(render_loader)}')
 
     # create projector
     projector = Projector(device=device)
@@ -136,7 +124,7 @@ def train(args):
     gt_color_dict_path = './data/Replica_DM/color_dict.json'
     gt_color_dict = json.load(open(gt_color_dict_path, 'r'))
     
-    for val_loader, scene_name in zip(val_set_lists, scene_set_names):
+    for render_loader, scene_name in zip(render_set_lists, scene_set_names):
         logging.basicConfig(format='%(message)s',
             level=logging.CRITICAL,
             filename=os.path.join(out_folder, scene_name, "result.log"),
@@ -155,15 +143,14 @@ def train(args):
 
         print("Evaluating...")
         indx = 0
-        psnr_scores,lpips_scores,ssim_scores, depth_scores = [],[],[],[]
-        ap50,ap75,ap95,que_ap50,que_ap75,que_ap95=[],[],[],[],[],[]
-        for val_data in val_loader:
-            tmp_ray_sampler = RaySamplerSingleImage(val_data, device, render_stride=args.render_stride)
+        scene_rgb_fine=[]; scene_pred_ins_img=[]; scene_que_pred_ins_img=[]; scene_pca_img=[];        
+        for render_data in tqdm(render_loader):
+            tmp_ray_sampler = RaySamplerSingleImage(render_data, device, render_stride=args.render_stride)
             H, W = tmp_ray_sampler.H, tmp_ray_sampler.W
             gt_img = tmp_ray_sampler.rgb.reshape(H, W, 3)
-            gt_depth = val_data['true_depth'][0]
+            gt_depth = render_data['true_depth'][0]
 
-            psnr_curr_img, lpips_curr_img, ssim_curr_img, ap, que_ap = log_view(
+            rgb_fine, pred_ins_img, que_pred_ins_img, pca_img = render_view(
                 indx,
                 args,
                 model,
@@ -180,33 +167,14 @@ def train(args):
                 val_name = scene_name,
                 color_dict = color_dict
             )
-            psnr_scores.append(psnr_curr_img)
-            lpips_scores.append(lpips_curr_img)
-            ssim_scores.append(ssim_curr_img)
-            ap50.append(ap[0])
-            ap75.append(ap[1])
-            ap95.append(ap[-1])
-            que_ap50.append(que_ap[0])
-            que_ap75.append(que_ap[1])
-            que_ap95.append(que_ap[-1])
             torch.cuda.empty_cache()
+            scene_rgb_fine.append(rgb_fine); scene_pred_ins_img.append(pred_ins_img)
+            scene_que_pred_ins_img.append(que_pred_ins_img); scene_pca_img.append(pca_img)
             indx += 1
-            logging.critical("Scene {}, Image {}-> PSNR: {:.2f}, LPIPS: {:.2f}, SSIM: {:.2f}, AP50: {:.2f}, AP75: {:.2f}, AP95: {:.2f}, que_AP50: {:.2f}, que_AP75: {:.2f}, que_AP95: {:.2f}".format(
-                scene_name, indx, psnr_curr_img,lpips_curr_img,ssim_curr_img, \
-                    ap[0],ap[1], ap[-1], que_ap[0],que_ap[1], que_ap[-1]))
-        scene_psnr  = np.mean(psnr_scores)
-        scene_ap50  = np.mean(ap50)
-        scene_ap75  = np.mean(ap75)
-        scene_ap95  = np.mean(ap95)
-        scene_psnr = np.mean(psnr_scores)
-        scene_lpips = np.mean(lpips_scores)
-        scene_ssim = np.mean(ssim_scores)
-        scene_depth = np.mean(depth_scores)
-        print("Average {} PSNR: {}, LPIPS: {}, SSIM: {}, AP50: {}, AP75: {}, AP95: {}".format(
-            scene_name,scene_psnr,scene_lpips,scene_ssim,scene_ap50,scene_ap75, scene_ap95))
-        logging.critical("Scene {} Average-> PSNR: {}, LPIPS: {}, SSIM: {}, AP50: {}, AP75: {}, AP95: {}".format(
-            scene_name,scene_psnr,scene_lpips,scene_ssim,scene_ap50,scene_ap75, scene_ap95))
-            
+        imageio.mimwrite(os.path.join(f'out/ins_replica_gpu_8/{scene_name}', 'rgb_fine.mp4'), scene_rgb_fine, fps=10, quality=8)
+        imageio.mimwrite(os.path.join(f'out/ins_replica_gpu_8/{scene_name}', 'pred_ins_img.mp4'), scene_pred_ins_img, fps=10, quality=8)
+        imageio.mimwrite(os.path.join(f'out/ins_replica_gpu_8/{scene_name}', 'que_pred_ins_img.mp4'), scene_que_pred_ins_img, fps=10, quality=8)
+        imageio.mimwrite(os.path.join(f'out/ins_replica_gpu_8/{scene_name}', 'pca_img.mp4'), scene_pca_img, fps=10, quality=8)
     if args.expname != 'debug':
         print("All Scenes best IoU results: {}".format(all_ap75_scores))
         values = all_ap75_scores.values()
@@ -214,7 +182,7 @@ def train(args):
         print("Average IoU result: {}".format(mean_iou))
 
 @torch.no_grad()
-def log_view(
+def render_view(
     global_step,
     args,
     model,
@@ -260,15 +228,18 @@ def log_view(
             single_net=single_net,
         )
         
-        corase_sem_out = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None)
-        fine_sem_out = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None)
+        if args.render_stride == 1:
+            corase_sem_out = model.sem_seg_head(ret['outputs_coarse']['feats_out'][::2, ::2, :].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+            fine_sem_out = model.sem_seg_head(ret['outputs_fine']['feats_out'][::2, ::2, :].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        else:
+            corase_sem_out = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+            fine_sem_out = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
         que_sem_out = model.sem_seg_head(que_deep_semantics, None, None)
-        ret['outputs_coarse']['sems'] = F.softmax(corase_sem_out.permute(0,2,3,1), dim=-1)
-        ret['outputs_fine']['sems'] = F.softmax(fine_sem_out.permute(0,2,3,1), dim=-1)
+        ret['outputs_coarse']['sems'] = F.softmax(corase_sem_out, dim=-1)
+        ret['outputs_fine']['sems'] = F.softmax(fine_sem_out, dim=-1)
         
         
         ret['que_sems'] = F.softmax(que_sem_out.permute(0,2,3,1), dim=-1)
-        
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
@@ -276,41 +247,19 @@ def log_view(
         gt_img = gt_img_vanilla[::render_stride, ::render_stride]
         gt_depth = gt_depth[::render_stride, ::render_stride]
         average_im = average_im[::render_stride, ::render_stride]
+    else:
+        gt_img = gt_img_vanilla
 
     rgb_gt = img_HWC2CHW(gt_img)
     average_im = img_HWC2CHW(average_im)
 
     rgb_pred = img_HWC2CHW(ret["outputs_coarse"]["rgb"].detach().cpu())
 
+    rgb_gt = img_HWC2CHW(gt_img)
     h_max = max(rgb_gt.shape[-2], rgb_pred.shape[-2], average_im.shape[-2])
     w_max = max(rgb_gt.shape[-1], rgb_pred.shape[-1], average_im.shape[-1])
-    rgb_im = torch.zeros(3, h_max, 3 * w_max)
-    rgb_im[:, : average_im.shape[-2], : average_im.shape[-1]] = average_im
-    rgb_im[:, : rgb_gt.shape[-2], w_max : w_max + rgb_gt.shape[-1]] = rgb_gt
-    rgb_im[:, : rgb_pred.shape[-2], 2 * w_max : 2 * w_max + rgb_pred.shape[-1]] = rgb_pred
-    if "depth" in ret["outputs_coarse"].keys():
-        depth_pred = ret["outputs_coarse"]["depth"].detach().cpu()
-        depth_pred = torch.cat((colorize(gt_depth.squeeze(-1).detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
-
-        depth_im = img_HWC2CHW(depth_pred)
-    else:
-        depth_im = None
-    
     if ret["outputs_fine"] is not None:
-        rgb_fine = img_HWC2CHW(ret["outputs_fine"]["rgb"].detach().cpu())
-        rgb_fine_ = torch.zeros(3, h_max, w_max)
-        rgb_fine_[:, : rgb_fine.shape[-2], : rgb_fine.shape[-1]] = rgb_fine
-        rgb_im = torch.cat((rgb_im, rgb_fine_), dim=-1)
-        depth_pred = torch.cat((depth_pred, colorize(ret["outputs_fine"]["depth"].detach().cpu(), cmap_name="jet")), dim=1)
-        depth_im = img_HWC2CHW(depth_pred)
-
-    rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
-    filename = os.path.join(out_folder, val_name, "rgb_{:03d}.png".format(global_step))
-    imageio.imwrite(filename, rgb_im)
-    if depth_im is not None:
-        depth_im = depth_im.permute(1, 2, 0).detach().cpu().numpy()
-        filename = os.path.join(out_folder, val_name, "depth_{:03d}.png".format(global_step))
-        imageio.imwrite(filename, depth_im)
+        rgb_fine = ret["outputs_fine"]["rgb"].detach().cpu()
 
     # write scalar
     pred_rgb = (
@@ -318,43 +267,24 @@ def log_view(
         if ret["outputs_fine"] is not None else ret["outputs_coarse"]["rgb"]
     )
 
-    lpips_curr_img = lpips(pred_rgb, gt_img, format="HWC").item()
-    ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
-    psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
-
-    pred_label, ap, pred_matched_order, gt_label_np = evaluator[0].ins_eval(ret['outputs_fine']['sems'], ray_batch['labels'].reshape(h_max*2, w_max*2).unsqueeze(0))
+    pred_label, ap, pred_matched_order, gt_label_np = evaluator[0].ins_eval(ret['outputs_fine']['sems'], ray_batch['labels'].reshape(h_max, w_max).unsqueeze(0))
     ins_map = {}
     for idx, pred_label_replica in enumerate(pred_matched_order):
         if pred_label_replica != -1:
             ins_map[str(pred_label_replica)] = int(gt_label_np[idx])
     pred_ins_img = evaluator[0].render_label2img(pred_label, args.semantic_color_map, color_dict, ins_map)
 
-    que_pred_label, que_ap, que_pred_matched_order, que_gt_label_np = evaluator[0].ins_eval(ret['que_sems'], ray_batch['labels'].reshape(h_max*2, w_max*2).unsqueeze(0))
+    que_pred_label, que_ap, que_pred_matched_order, que_gt_label_np = evaluator[0].ins_eval(ret['que_sems'], ray_batch['labels'].reshape(h_max, w_max).unsqueeze(0))
     que_ins_map = {}
     for idx, pred_label_replica in enumerate(que_pred_matched_order):
         if pred_label_replica != -1:
             que_ins_map[str(pred_label_replica)] = int(que_gt_label_np[idx])
     que_pred_ins_img = evaluator[0].render_label2img(que_pred_label, args.semantic_color_map, color_dict, que_ins_map)
-    gt_ins_img = evaluator[0].render_gt_label2img(ray_batch['labels'].reshape(h_max*2, w_max*2), args.semantic_color_map, color_dict)
 
-    plot_pca_features(ret, ray_batch, global_step, val_name, vis=True)
+    pca_img = plot_pca_features(ret, ray_batch, global_step, val_name, vis=True, return_img = True)
 
-    ins_img_save = np.concatenate([gt_img_vanilla.numpy() * 255,gt_ins_img,pred_ins_img,que_pred_ins_img], axis=1)
-    filename = os.path.join(out_folder, val_name, "ins_{:03d}.png".format(global_step))
-    cv2.imwrite(filename, ins_img_save)
-
-
-    print(prefix + "psnr_image: ", psnr_curr_img)
-    print(prefix + "lpips_image: ", lpips_curr_img)
-    print(prefix + "ssim_image: ", ssim_curr_img)
-    print(prefix + "AP50: ", ap[0])
-    print(prefix + "AP75: ", ap[1])
-    print(prefix + "AP95: ", ap[-1])
-    print(prefix + "que_AP50: ", que_ap[0])
-    print(prefix + "que_AP75: ", que_ap[1])
-    print(prefix + "que_AP95: ", que_ap[-1])
     model.switch_to_train()
-    return psnr_curr_img, lpips_curr_img, ssim_curr_img, ap, que_ap
+    return rgb_fine, pred_ins_img, que_pred_ins_img, pca_img
 
 if __name__ == "__main__":
     parser = config.config_parser()

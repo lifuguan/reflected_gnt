@@ -53,3 +53,17 @@ python -m torch.distributed.launch --nproc_per_node=4 \
        --master_port=$(( RANDOM % 1000 + 50000 )) \
        ft_scannet.py --config configs/gnt_replica_ft.txt \
        --ckpt_path ./out/distill_replica/gnt_best.pth --expname ft_replica  --no_load_opt --no_load_scheduler
+
+
+
+export CUDA_VISIBLE_DEVICES=5
+python render_ins_scannet_video.py \
+       --config configs/gnt_replica_instance.txt \
+       --expname ins_replica_gpu_8 --no_load_opt --no_load_scheduler \
+       --chunk_size 512 --train_scenes office_2
+
+export CUDA_VISIBLE_DEVICES=6
+python render_ins_scannet_video.py \
+       --config configs/gnt_replica_instance.txt \
+       --expname ins_replica_gpu_8 --no_load_opt --no_load_scheduler \
+       --chunk_size 512 --train_scenes room_2

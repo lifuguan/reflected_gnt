@@ -1,7 +1,7 @@
 ### INPUT
 expname = gnt_replica_instance
 rootdir = ./
-render_stride = 2
+render_stride = 1
 distributed = False
 num_source_views = 10
 

@@ -324,13 +324,7 @@ class ScannetValDataset(Dataset):
 
         all_poses = [render_pose]
         # get depth range
-        min_ratio = 0.1
-        origin_depth = np.linalg.inv(render_pose)[2, 3]
-        max_radius = 0.5 * np.sqrt(2) * 1.1
-        near_depth = max(origin_depth - max_radius, min_ratio * origin_depth)
-        far_depth = origin_depth + max_radius
-        # depth_range = torch.tensor([near_depth, far_depth])
-        depth_range = torch.tensor([0.1, 10.0])
+        depth_range = torch.tensor([0.1, 6.0])
 
         src_rgbs = []
         src_cameras = []

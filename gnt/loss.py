@@ -16,6 +16,37 @@ import matplotlib.pyplot as plt
 def nanmean(data, **args):
     return np.ma.masked_array(data, np.isnan(data)).mean(**args)
 
+def plot_pca_features(data_pred, ray_batch, step, val_name=None, vis=False, return_img = False):
+    coarse_feats = data_pred['outputs_coarse']['feats_out'].unsqueeze(0).permute(0,3,1,2)
+    fine_feats = data_pred['outputs_fine']['feats_out'].unsqueeze(0).permute(0,3,1,2)
+    h, w = coarse_feats.shape[2:4]
+    def pca_calc(feats):
+        fmap = feats.cuda()
+        pca = sklearn.decomposition.PCA(3, random_state=80)
+        f_samples = fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1])[::3].cpu().numpy()
+        transformed = pca.fit_transform(f_samples)
+        feature_pca_mean = torch.tensor(f_samples.mean(0)).float().cuda()
+        feature_pca_components = torch.tensor(pca.components_).float().cuda()
+        q1, q99 = np.percentile(transformed, [1, 99])
+        feature_pca_postprocess_sub = q1
+        feature_pca_postprocess_div = (q99 - q1)
+        del f_samples
+
+        vis_feature = (fmap.permute(0, 2, 3, 1).reshape(-1, fmap.shape[1]) - feature_pca_mean[None, :]) @ feature_pca_components.T
+        vis_feature = (vis_feature - feature_pca_postprocess_sub) / feature_pca_postprocess_div
+        vis_feature = vis_feature.clamp(0.0, 1.0).float().reshape((fmap.shape[2], fmap.shape[3], 3)).cpu()
+        return (vis_feature.cpu().numpy() * 255).astype(np.uint8)
+
+    rgbs = ray_batch['rgb']  # 1,rn,3
+    rgbs = rgbs.reshape([h, w, 3]).detach() * 255
+    rgbs = rgbs.squeeze().cpu().numpy().astype(np.uint8)[::2, ::2]     
+    if return_img is True:
+        return pca_calc(fine_feats)
+    else:
+        imgs = [rgbs, pca_calc(coarse_feats), pca_calc(fine_feats)]
+        model_name = 'ins_replica_gpu_8'
+        if vis is True:
+            imsave(f'out/{model_name}/{val_name}/pca_{step}.png', concat_images_list(*imgs))
 class Loss:
     def __init__(self, keys):
         """

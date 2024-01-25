@@ -20,6 +20,18 @@
             "env":{
                 "CUDA_VISIBLE_DEVICES": "1"
             },
+            "name": "render: replica instance",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/render_ins_scannet_video.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "args": ["--config", "configs/gnt_replica_instance.txt", "--expname", "ins_replica_gpu_8", "--no_load_opt", "--no_load_scheduler", "--chunk_size", "512", "--train_scenes", "office_0"]
+        },
+        {
+            "env":{
+                "CUDA_VISIBLE_DEVICES": "1"
+            },
             "name": "eval: replica instance",
             "type": "python",
             "request": "launch",
@@ -47,7 +59,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/distill_replica/model_003999.pth", "--chunk_size", "2048"]
+            "args": ["--config", "configs/gnt_replica.txt", "--expname", "debug", "--no_load_opt", "--ckpt_path", "./out/distill_replica/model_001999.pth", "--chunk_size", "2048"]
         },
         {
             "name": "ft: replica",
