@@ -139,8 +139,9 @@ class DepthLoss(nn.Module):
         self.loss_op = nn.SmoothL1Loss(reduction='none', beta=self.depth_loss_l1_beta)
 
     def __call__(self, data_pr, data_gt, **kwargs):
-        depth_pr = data_pr['outputs_coarse']['depth']  # pn
-        depth_gt = data_gt['true_depth']  # pn
+        depth_mask = data_gt['depth_mask']
+        depth_pr = data_pr['outputs_coarse']['depth'] * depth_mask
+        depth_gt = data_gt['true_depth'] * depth_mask
 
         # transform to inverse depth coordinate
         depth_range = data_gt['depth_range']  # rfn,2
@@ -152,7 +153,7 @@ class DepthLoss(nn.Module):
             depth = (depth - near) / (far - near)
             depth = torch.clamp(depth, min=0, max=1.0)
             return depth
-        depth_gt = process(depth_gt)
+        depth_gt = process(depth_gt) * depth_mask
 
         # compute loss
         def compute_loss(depth_pr):

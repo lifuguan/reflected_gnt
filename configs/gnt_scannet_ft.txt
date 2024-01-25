@@ -1,7 +1,7 @@
 ### INPUT
 expname = gnt_full
 rootdir = ./
-render_stride = 2
+render_stride = 1
 distributed = False
 
 ### PRETRAIN Model
@@ -37,7 +37,7 @@ white_bkgd = False
 ### CONSOLE AND TENSORBOARD
 total_step = 16000
 i_print = 100
-save_interval = 2000
+save_interval = 500
 
 ### SEMANTIC SETTING
 save_feature = True
@@ -46,7 +46,7 @@ semantic_model = fpn
 
 ##
 
-depth_loss_scale = 0.75
+depth_loss_scale = 0.5
 render_loss_scale = 0.75
 distill_loss_scale = 0.1
 semantic_loss_scale = 0.25

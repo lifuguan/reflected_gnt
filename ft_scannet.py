@@ -208,7 +208,8 @@ def train(args):
                 render_loss = render_criterion(ret, ray_batch)
                 depth_loss = depth_criterion(ret, ray_batch)
                 semantic_loss = semantic_criterion(ret, ray_batch, step=global_step)
-                loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + depth_loss['train/depth-loss'] + loss_distill * args.distill_loss_scale + loss_depth_guided_sem * args.distill_loss_scale
+                loss = semantic_loss['train/semantic-loss'] + render_loss['train/rgb-loss'] + depth_loss['train/depth-loss'] \
+                    + loss_distill * args.distill_loss_scale # + loss_depth_guided_sem * args.distill_loss_scale
 
                 model.optimizer.zero_grad()
                 loss.backward()
@@ -253,7 +254,7 @@ def train(args):
                     if args.expname != 'debug':
                         wandb.log(scalars_to_log)
 
-                    if (global_step+1) % args.save_interval == 0 or global_step == 2:
+                    if (global_step+1) % args.save_interval == 0:
                     # if (global_step+1) % 100 == 0:
                         print("Evaluating...")
                         indx = 0
@@ -360,8 +361,8 @@ def log_view(
             single_net=single_net,
         )
         
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'][::2,::2,:].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'][::2,::2,:].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
         
         ret['que_sems'] = model.sem_seg_head(que_deep_semantics, None, None).permute(0,2,3,1)
         

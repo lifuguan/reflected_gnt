@@ -81,7 +81,7 @@
             "program": "${workspaceFolder}/eval_scannet.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "args": ["--config", "configs/gnt_scannet.txt", "--chunk_size", "500", "--expname", "distill_dgs_gpu_8", "--no_load_opt", "--ckpt_path", "./out/distill_dgs_gpu_8/model_219999.pth", "--val_set_list","configs/scannetv2_test_split.txt"]
+            "args": ["--config", "configs/gnt_scannet.txt", "--chunk_size", "500", "--expname", "test", "--no_load_opt", "--ckpt_path", "./out/distill_dgs_gpu_8/model_219999.pth", "--val_set_list","configs/scannetv2_test_split.txt", "--render_stride", "1"]
         },
         {
             "env":{

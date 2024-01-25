@@ -194,8 +194,8 @@ def log_view(
             single_net=single_net,
         )
 
-        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
-        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_coarse']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'][::2,::2,:].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
+        ret['outputs_fine']['sems'] = model.sem_seg_head(ret['outputs_coarse']['feats_out'][::2,::2,:].permute(2,0,1).unsqueeze(0).to(device), None, None).permute(0,2,3,1)
 
 
     average_im = ray_sampler.src_rgbs.cpu().mean(dim=(0, 1))
@@ -203,6 +203,9 @@ def log_view(
         gt_img = gt_img[::render_stride, ::render_stride]
         gt_depth = gt_depth[::render_stride, ::render_stride]
         average_im = average_im[::render_stride, ::render_stride]
+
+    invalid_depth_mask = torch.ones_like(gt_depth)
+    invalid_depth_mask[gt_depth == 0] = 0
     ray_batch['true_depth'] = gt_depth
     ray_batch['depth_range'] = ray_batch['depth_range'].to(gt_depth.device)
 
@@ -219,7 +222,7 @@ def log_view(
     rgb_im[:, : rgb_pred.shape[-2], 2 * w_max : 2 * w_max + rgb_pred.shape[-1]] = rgb_pred
     if "depth" in ret["outputs_coarse"].keys():
         depth_pred = ret["outputs_coarse"]["depth"].detach().cpu()
-        depth_pred = torch.cat((colorize(gt_depth.squeeze(-1).detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
+        depth_pred = torch.cat((colorize(gt_depth.squeeze(-1).detach().cpu(), cmap_name="jet", append_cbar=True, cbar_in_image=True), colorize(depth_pred, cmap_name="jet", cbar_in_image=True, append_cbar=True)), dim=1)
 
         depth_im = img_HWC2CHW(depth_pred)
     else:
@@ -230,7 +233,7 @@ def log_view(
         rgb_fine_ = torch.zeros(3, h_max, w_max)
         rgb_fine_[:, : rgb_fine.shape[-2], : rgb_fine.shape[-1]] = rgb_fine
         rgb_im = torch.cat((rgb_im, rgb_fine_), dim=-1)
-        depth_pred = torch.cat((depth_pred, colorize(ret["outputs_fine"]["depth"].detach().cpu(), cmap_name="jet")), dim=1)
+        depth_pred = torch.cat((depth_pred, colorize(ret["outputs_fine"]["depth"].detach().cpu(), cmap_name="jet", append_cbar=True, cbar_in_image=True)), dim=1)
         depth_im = img_HWC2CHW(depth_pred)
 
     rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
