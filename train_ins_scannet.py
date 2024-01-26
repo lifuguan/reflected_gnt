@@ -395,8 +395,8 @@ def log_view(
             ret_alpha=ret_alpha,
             single_net=single_net,
         )
-        corase_sem_out = model.sem_seg_head(ret['outputs_coarse']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None)
-        fine_sem_out = model.sem_seg_head(ret['outputs_fine']['feats_out'].permute(2,0,1).unsqueeze(0).to(device), None, None)
+        corase_sem_out = model.sem_seg_head(ret['outputs_coarse']['feats_out'][::2,::2,:].permute(2,0,1).unsqueeze(0).to(device), None, None)
+        fine_sem_out = model.sem_seg_head(ret['outputs_fine']['feats_out'][::2,::2,:].permute(2,0,1).unsqueeze(0).to(device), None, None)
         ret['outputs_coarse']['sems'] = torch.sigmoid(corase_sem_out.permute(0,2,3,1))
         ret['outputs_fine']['sems'] = torch.sigmoid(fine_sem_out.permute(0,2,3,1))
         
@@ -409,6 +409,8 @@ def log_view(
         gt_img = gt_img_vanilla[::render_stride, ::render_stride]
         gt_depth = gt_depth[::render_stride, ::render_stride]
         average_im = average_im[::render_stride, ::render_stride]
+    else:
+        gt_img = gt_img_vanilla
 
     rgb_gt = img_HWC2CHW(gt_img)
     average_im = img_HWC2CHW(average_im)
@@ -423,7 +425,7 @@ def log_view(
     rgb_im[:, : rgb_pred.shape[-2], 2 * w_max : 2 * w_max + rgb_pred.shape[-1]] = rgb_pred
     if "depth" in ret["outputs_coarse"].keys():
         depth_pred = ret["outputs_coarse"]["depth"].detach().cpu()
-        depth_pred = torch.cat((colorize(gt_depth.squeeze(-1).detach().cpu(), cmap_name="jet"), colorize(depth_pred, cmap_name="jet")), dim=1)
+        depth_pred = torch.cat((colorize(gt_depth.squeeze(-1).detach().cpu(), cmap_name="jet", append_cbar=True, cbar_in_image=True), colorize(depth_pred, cmap_name="jet", append_cbar=True, cbar_in_image=True)), dim=1)
 
         depth_im = img_HWC2CHW(depth_pred)
     else:
@@ -434,7 +436,7 @@ def log_view(
         rgb_fine_ = torch.zeros(3, h_max, w_max)
         rgb_fine_[:, : rgb_fine.shape[-2], : rgb_fine.shape[-1]] = rgb_fine
         rgb_im = torch.cat((rgb_im, rgb_fine_), dim=-1)
-        depth_pred = torch.cat((depth_pred, colorize(ret["outputs_fine"]["depth"].detach().cpu(), cmap_name="jet")), dim=1)
+        depth_pred = torch.cat((depth_pred, colorize(ret["outputs_fine"]["depth"].detach().cpu(), cmap_name="jet", append_cbar=True, cbar_in_image=True)), dim=1)
         depth_im = img_HWC2CHW(depth_pred)
 
     rgb_im = rgb_im.permute(1, 2, 0).detach().cpu().numpy()
@@ -460,7 +462,7 @@ def log_view(
     lpips_curr_img = lpips(pred_rgb, gt_img, format="HWC").item()
     ssim_curr_img = ssim(pred_rgb, gt_img, format="HWC").item()
     psnr_curr_img = img2psnr(pred_rgb.detach().cpu(), gt_img)
-    pred_label, ap, pred_matched_order, gt_label_np = evaluator[0].ins_eval(ret['outputs_fine']['sems'], ray_batch['labels'].reshape(h_max*2, w_max*2).unsqueeze(0))
+    pred_label, ap, pred_matched_order, gt_label_np = evaluator[0].ins_eval(ret['outputs_fine']['sems'], ray_batch['labels'].reshape(h_max, w_max).unsqueeze(0))
 
     ins_map = {}
     for idx, pred_label_replica in enumerate(pred_matched_order):
@@ -469,14 +471,14 @@ def log_view(
 
     pred_ins_img = evaluator[0].render_label2img(pred_label, args.semantic_color_map, color_dict, ins_map)
 
-    que_pred_label, que_ap, que_pred_matched_order, que_gt_label_np = evaluator[0].ins_eval(ret['que_sems'], ray_batch['labels'].reshape(h_max*2, w_max*2).unsqueeze(0))
+    que_pred_label, que_ap, que_pred_matched_order, que_gt_label_np = evaluator[0].ins_eval(ret['que_sems'], ray_batch['labels'].reshape(h_max, w_max).unsqueeze(0))
     que_ins_map = {}
     for idx, pred_label_replica in enumerate(que_pred_matched_order):
         if pred_label_replica != -1:
             que_ins_map[str(pred_label_replica)] = int(que_gt_label_np[idx])
     que_pred_ins_img = evaluator[0].render_label2img(que_pred_label, args.semantic_color_map, color_dict, que_ins_map)
 
-    gt_ins_img = evaluator[0].render_gt_label2img(ray_batch['labels'].reshape(h_max*2, w_max*2), args.semantic_color_map, color_dict)
+    gt_ins_img = evaluator[0].render_gt_label2img(ray_batch['labels'].reshape(h_max, w_max), args.semantic_color_map, color_dict)
     ins_img_save = np.concatenate([gt_img_vanilla.numpy() * 255,gt_ins_img,pred_ins_img,que_pred_ins_img], axis=1)
     filename = os.path.join(out_folder, val_name, "ins_{:03d}.png".format(global_step))
     cv2.imwrite(filename, ins_img_save)

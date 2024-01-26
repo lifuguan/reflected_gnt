@@ -35,7 +35,7 @@ white_bkgd = False
 ### CONSOLE AND TENSORBOARD
 total_step = 6000
 i_print = 100
-save_interval = 2000
+save_interval = 500
 
 ### SEMANTIC SETTING
 save_feature = True
@@ -45,7 +45,7 @@ semantic_model = fpn
 render_loss_scale = 1.0
 semantic_loss_scale = 0.5
 distill_loss_scale = 0.25
-depth_loss_scale = 0
+depth_loss_scale = 0.5
 
 
 num_classes = 51

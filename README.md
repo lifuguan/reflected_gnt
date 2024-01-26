@@ -67,3 +67,10 @@ python render_ins_scannet_video.py \
        --config configs/gnt_replica_instance.txt \
        --expname ins_replica_gpu_8 --no_load_opt --no_load_scheduler \
        --chunk_size 512 --train_scenes room_2
+
+
+export CUDA_VISIBLE_DEVICES=4,5,6,7
+python -m torch.distributed.launch --nproc_per_node=4 \
+       --master_port=$(( RANDOM % 1000 + 50000 )) \
+       train_ins_scannet.py --config configs/gnt_replica_instance.txt \
+       --ckpt_path ./out/gnt_best.pth --expname ins_replica_depth_gpu_4_lr --no_load_opt --no_load_scheduler --depth_loss_scale 1.0

@@ -323,8 +323,10 @@ class ScannetValDataset(Dataset):
         label = self.label_mapping(label)
 
         all_poses = [render_pose]
-        # get depth range
-        depth_range = torch.tensor([0.1, 6.0])
+        depth_range = np.array([0.1, 6.0])
+
+        depth_mask = np.ones_like(depth)
+        depth_mask[depth == 0] = 0
 
         src_rgbs = []
         src_cameras = []
@@ -354,10 +356,12 @@ class ScannetValDataset(Dataset):
         return {
             "rgb": torch.from_numpy(rgb),
             "true_depth": torch.from_numpy(depth),
+            "depth_mask": torch.from_numpy(depth_mask),
             "labels": torch.from_numpy(label),
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[que_idx],
             "src_rgbs": torch.from_numpy(src_rgbs),
             "src_cameras": torch.from_numpy(src_cameras),
-            "depth_range": depth_range,
+            "depth_range": torch.from_numpy(depth_range),
         }
+

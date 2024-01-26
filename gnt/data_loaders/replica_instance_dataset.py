@@ -125,8 +125,9 @@ class ReplicaInsDataset(Dataset):
         all_poses = [render_pose]
         # get depth range
         depth_range = np.array([0.1, 6.0])
-        depth_mask[depth_mask > depth_range[1]] = False
-        depth_mask[depth_mask < depth_range[0]] = False
+        depth_mask = np.ones_like(depth)
+        depth_mask[depth_mask > (depth_range[1]-0.1)] = False
+        depth_mask[depth < (depth_range[0]+0.1)] = False
 
         src_rgbs = []
         src_cameras = []
