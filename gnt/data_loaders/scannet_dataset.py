@@ -36,6 +36,8 @@ class ScannetTrainDataset(Dataset):
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
 
+        self.depth_noise_ratio = args.depth_noise_ratio
+
         image_size = 320
         self.ratio = image_size / 1296
         self.h, self.w = int(self.ratio*972), int(image_size)
@@ -137,6 +139,14 @@ class ScannetTrainDataset(Dataset):
         depth = np.asarray(img, dtype=np.float32) / 1000.0  # mm -> m
         depth = np.ascontiguousarray(depth, dtype=np.float32)
         depth = cv2.resize(depth, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+        depth_range = np.array([0.1, 6.0])
+
+        if self.depth_noise_ratio != 0:
+            num_pixels = int(self.h * self.w * self.depth_noise_ratio)
+            pixel_indices = np.random.choice(self.h * self.w, num_pixels, replace=True)
+            depth = depth.flatten()
+            depth[pixel_indices] = depth_range[0]
+            depth = np.reshape(depth, (self.w, self.h))
 
         intrinsics = np.loadtxt(intrinsics_files[id_render]).reshape([4, 4])
         intrinsics[:2, :] *= self.ratio
@@ -155,13 +165,8 @@ class ScannetTrainDataset(Dataset):
         label = self.label_mapping(label)
 
         all_poses = [render_pose]
-        # get depth range
-        # poses = render_pose[:, :-2].reshape([-1, 3, 5]).transpose([1, 2, 0])
-        # bds = render_pose[:, -2:].transpose([1, 0])
-        # bds = np.moveaxis(bds, -1, 0).astype(np.float32)
-        # far_depth = origin_depth + max_radius
-        # depth_range = torch.tensor([near_depth, far_depth])
-        depth_range = torch.tensor([0.1, 10.0])
+        depth_mask = np.ones_like(depth)
+        depth_mask[depth == 0] = 0
 
         src_rgbs = []
         src_cameras = []
@@ -191,12 +196,13 @@ class ScannetTrainDataset(Dataset):
         return {
             "rgb": torch.from_numpy(rgb),
             "true_depth": torch.from_numpy(depth),
+            "depth_mask": torch.from_numpy(depth_mask),
             "labels": torch.from_numpy(label),
             "camera": torch.from_numpy(camera),
             "rgb_path": rgb_files[id_render],
             "src_rgbs": torch.from_numpy(src_rgbs),
             "src_cameras": torch.from_numpy(src_cameras),
-            "depth_range": depth_range,
+            "depth_range": torch.from_numpy(depth_range),
         }
 
 
@@ -299,7 +305,15 @@ class ScannetValDataset(Dataset):
         depth = np.asarray(img, dtype=np.float32) / 1000.0  # mm -> m
         depth = np.ascontiguousarray(depth, dtype=np.float32)
         depth = cv2.resize(depth, (self.w, self.h), interpolation=cv2.INTER_NEAREST)
+        depth_range = np.array([0.1, 6.0])
 
+        if self.depth_noise_ratio != 0:
+            num_pixels = int(self.h * self.w * self.depth_noise_ratio)
+            pixel_indices = np.random.choice(self.h * self.w, num_pixels, replace=True)
+            depth = depth.flatten()
+            depth[pixel_indices] = depth_range[0]
+            depth = np.reshape(depth, (self.w, self.h))
+            
         rgb = imageio.imread(rgb_files[que_idx]).astype(np.float32) / 255.0
 
         if self.w != 1296:
@@ -323,7 +337,6 @@ class ScannetValDataset(Dataset):
         label = self.label_mapping(label)
 
         all_poses = [render_pose]
-        depth_range = np.array([0.1, 6.0])
 
         depth_mask = np.ones_like(depth)
         depth_mask[depth == 0] = 0

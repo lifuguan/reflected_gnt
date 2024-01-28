@@ -225,4 +225,8 @@ def config_parser():
 
     parser.add_argument('--model', type=str, default='gnt')
 
+    parser.add_argument('--n_p', type=int, default=2)
+
+    parser.add_argument('--depth_noise_ratio', type=int, default=0, help="0-100")
+
     return parser

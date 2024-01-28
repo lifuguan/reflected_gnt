@@ -29,10 +29,12 @@ inv_uniform = True
 white_bkgd = False
 
 ### CONSOLE AND TENSORBOARD
-total_step = 16000
+total_step = 160000
 i_print = 100
 save_interval = 20000
 
 ### SEMANTIC SETTING
 save_feature = True
 semantic_model = fpn
+
+n_p = 2

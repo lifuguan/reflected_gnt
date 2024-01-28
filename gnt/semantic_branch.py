@@ -13,6 +13,7 @@ class NeRFSemSegFPNHead(nn.Module):
     def __init__(self, args, feature_strides=[2,4,8,16], feature_channels=[128,128,128,128], num_classes = 20):
         super(NeRFSemSegFPNHead, self).__init__()
 
+        self.n_p = args.n_p
         conv_dims = 128
         self.scale_heads = nn.ModuleList()
         self.common_stride = 2
@@ -73,10 +74,21 @@ class NeRFSemSegFPNHead(nn.Module):
 
             # max_weights_inds = depth_weights.argsort(dim=-1)[:,:5]
             max_weights_inds = depth_weights.argmax(dim=-1).unsqueeze(-1)
-            max_weights_inds[max_weights_inds == 63] -= 2
-            max_weights_inds[max_weights_inds == 62] -= 1
-            max_weights_inds[max_weights_inds == 1] += 1
-            max_weights_inds[max_weights_inds == 0] += 2
+            if self.n_p == 1:
+                max_weights_inds[max_weights_inds == 63] -= 1
+                max_weights_inds[max_weights_inds == 0] += 1
+            elif self.n_p == 2:
+                max_weights_inds[max_weights_inds == 63] -= 2
+                max_weights_inds[max_weights_inds == 62] -= 1
+                max_weights_inds[max_weights_inds == 1] += 1
+                max_weights_inds[max_weights_inds == 0] += 2
+            elif self.n_p == 3:
+                max_weights_inds[max_weights_inds == 63] -= 3
+                max_weights_inds[max_weights_inds == 62] -= 2
+                max_weights_inds[max_weights_inds == 61] -= 1
+                max_weights_inds[max_weights_inds == 2] += 1
+                max_weights_inds[max_weights_inds == 1] += 2
+                max_weights_inds[max_weights_inds == 0] += 3
             max_weights_inds = torch.cat([max_weights_inds-1, max_weights_inds-2, max_weights_inds, max_weights_inds+1,max_weights_inds+2], dim=1)
             similarity_targets = torch.zeros_like(depth_weights).to(device)
             similarity_targets[np.arange(512)[:, np.newaxis], max_weights_inds]=1
