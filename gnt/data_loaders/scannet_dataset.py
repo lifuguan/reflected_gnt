@@ -213,6 +213,7 @@ class ScannetValDataset(Dataset):
         self.is_train = is_train
         self.num_source_views = args.num_source_views
         self.rectify_inplane_rotation = args.rectify_inplane_rotation
+        self.depth_noise_ratio = args.depth_noise_ratio
 
         image_size = 320
         self.ratio = image_size / 1296

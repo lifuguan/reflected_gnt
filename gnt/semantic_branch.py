@@ -74,22 +74,32 @@ class NeRFSemSegFPNHead(nn.Module):
 
             # max_weights_inds = depth_weights.argsort(dim=-1)[:,:5]
             max_weights_inds = depth_weights.argmax(dim=-1).unsqueeze(-1)
-            if self.n_p == 1:
-                max_weights_inds[max_weights_inds == 63] -= 1
-                max_weights_inds[max_weights_inds == 0] += 1
-            elif self.n_p == 2:
-                max_weights_inds[max_weights_inds == 63] -= 2
-                max_weights_inds[max_weights_inds == 62] -= 1
-                max_weights_inds[max_weights_inds == 1] += 1
-                max_weights_inds[max_weights_inds == 0] += 2
-            elif self.n_p == 3:
-                max_weights_inds[max_weights_inds == 63] -= 3
-                max_weights_inds[max_weights_inds == 62] -= 2
-                max_weights_inds[max_weights_inds == 61] -= 1
-                max_weights_inds[max_weights_inds == 2] += 1
-                max_weights_inds[max_weights_inds == 1] += 2
-                max_weights_inds[max_weights_inds == 0] += 3
-            max_weights_inds = torch.cat([max_weights_inds-1, max_weights_inds-2, max_weights_inds, max_weights_inds+1,max_weights_inds+2], dim=1)
+            for i in range(1, self.n_p + 1):
+                max_weights_inds[max_weights_inds == 63] -= i
+                max_weights_inds[max_weights_inds == 63 - i] -= 1
+                max_weights_inds[max_weights_inds == i] += 1
+                max_weights_inds[max_weights_inds == 0] += i
+
+            offsets = torch.arange(-self.n_p, self.n_p + 1)
+            max_weights_inds = torch.cat([max_weights_inds + offset for offset in offsets], dim=1)
+            # if self.n_p == 1:
+            #     max_weights_inds[max_weights_inds == 63] -= 1
+            #     max_weights_inds[max_weights_inds == 0] += 1
+            #     max_weights_inds = torch.cat([max_weights_inds-1, max_weights_inds, max_weights_inds+1], dim=1)
+            # elif self.n_p == 2:
+            #     max_weights_inds[max_weights_inds == 63] -= 2
+            #     max_weights_inds[max_weights_inds == 62] -= 1
+            #     max_weights_inds[max_weights_inds == 1] += 1
+            #     max_weights_inds[max_weights_inds == 0] += 2
+            #     max_weights_inds = torch.cat([max_weights_inds-1, max_weights_inds-2, max_weights_inds, max_weights_inds+1,max_weights_inds+2], dim=1)
+            # elif self.n_p == 3:
+            #     max_weights_inds[max_weights_inds == 63] -= 3
+            #     max_weights_inds[max_weights_inds == 62] -= 2
+            #     max_weights_inds[max_weights_inds == 61] -= 1
+            #     max_weights_inds[max_weights_inds == 2] += 1
+            #     max_weights_inds[max_weights_inds == 1] += 2
+            #     max_weights_inds[max_weights_inds == 0] += 3
+            #     max_weights_inds = torch.cat([max_weights_inds-1, max_weights_inds-2, max_weights_inds-3, max_weights_inds, max_weights_inds+1,max_weights_inds+2,max_weights_inds+3], dim=1)
             similarity_targets = torch.zeros_like(depth_weights).to(device)
             similarity_targets[np.arange(512)[:, np.newaxis], max_weights_inds]=1
 
